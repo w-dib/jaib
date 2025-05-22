@@ -1,3 +1,5 @@
+// import { createElement, ArrowLeft, Highlighter, Trash2, Share, ExternalLink, Type } from 'lucide'; // Removed Lucide import
+
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("articles.js loaded");
 
@@ -211,10 +213,101 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Populate View Original link
     if (article.url) {
-      headerUrl.innerHTML = `<a href="${article.url}" target="_blank" rel="noopener noreferrer">View Original <svg class="external-link-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M16 5l3 3m0 0l-7 7M19 8l-3-3"/></svg></a>`; // Add external link icon
+      headerUrl.innerHTML = ""; // Clear previous content
+      const viewOriginalLink = document.createElement("a");
+      viewOriginalLink.href = article.url;
+      viewOriginalLink.target = "_blank";
+      viewOriginalLink.rel = "noopener noreferrer";
+      viewOriginalLink.textContent = "View Original ";
+
+      // Create Bootstrap external link icon
+      const externalLinkIcon = document.createElement("i");
+      externalLinkIcon.classList.add("bi", "bi-box-arrow-up-right"); // Bootstrap icon classes
+      externalLinkIcon.classList.add("external-link-icon"); // Custom class for styling
+
+      viewOriginalLink.appendChild(externalLinkIcon);
+      headerUrl.appendChild(viewOriginalLink);
     } else {
       headerUrl.innerHTML = ""; // Clear if no URL
     }
+
+    // Populate icons in the header
+    const headerLeft = articleView.querySelector(".header-left");
+    const headerRight = articleView.querySelector(".header-right");
+    const headerCenter = articleView.querySelector(".header-center"); // Assuming you want icons visually centered but HTML structure is header-right
+
+    headerLeft.innerHTML = ""; // Clear previous icons
+    headerRight.innerHTML = ""; // Clear previous icons
+    // headerCenter.innerHTML = ''; // Clear if icons were in center initially
+
+    // Back icon
+    // const backIcon = createElement(ArrowLeft, { id: 'back-to-grid-icon', class: 'header-icon' }); // Removed Lucide creation
+    const backIcon = document.createElement("i"); // Create Bootstrap icon element
+    backIcon.id = "back-to-grid-icon";
+    backIcon.classList.add("header-icon", "bi", "bi-arrow-left"); // Bootstrap icon classes
+    headerLeft.appendChild(backIcon);
+    // Re-add the event listener to the new icon element
+    backIcon.addEventListener("click", backToGrid);
+
+    // Center icons (Highlighter, Trash, Share)
+    // const highlighterIcon = createElement(Highlighter, { class: 'header-icon' }); // Removed Lucide creation
+    // const trashIcon = createElement(Trash2, { id: 'delete-article-icon', class: 'header-icon delete-icon' }); // Removed Lucide creation
+    // const shareIcon = createElement(Share, { class: 'header-icon' }); // Removed Lucide creation
+
+    const highlighterIcon = document.createElement("i");
+    highlighterIcon.classList.add("header-icon", "bi", "bi-highlighter");
+
+    const trashIcon = document.createElement("i");
+    trashIcon.id = "delete-article-icon";
+    trashIcon.classList.add("header-icon", "delete-icon", "bi", "bi-trash"); // Added delete-icon class
+
+    const shareIcon = document.createElement("i");
+    shareIcon.classList.add("header-icon", "bi", "bi-share");
+
+    // Add event listener to the new trash icon element
+    trashIcon.addEventListener("click", async () => {
+      if (currentArticleId !== null) {
+        if (confirm("Are you sure you want to delete this article?")) {
+          const success = await deleteArticle(currentArticleId);
+          if (success) {
+            allArticles = allArticles.filter((a) => a.id !== currentArticleId);
+            backToGrid();
+            renderArticleList(allArticles);
+          } else {
+            alert("Failed to delete article.");
+          }
+        }
+      }
+    });
+
+    // Appending icons to header-right (matching last HTML structure) but in a container for grouping
+    const actionIconsContainer = document.createElement("div");
+    actionIconsContainer.style.display = "flex";
+    actionIconsContainer.style.gap = "15px"; // Match the header-right gap
+    actionIconsContainer.appendChild(highlighterIcon);
+    actionIconsContainer.appendChild(trashIcon);
+    actionIconsContainer.appendChild(shareIcon);
+
+    headerRight.appendChild(actionIconsContainer);
+
+    // aA icon and dropdown arrow
+    // const aAContainer = document.createElement('div'); // Reusing existing aAContainer logic
+    // aAContainer.classList.add('aA-icon');
+    // aAContainer.textContent = 'aA';
+    // const aADropdownArrow = createElement(Type, { class: 'aA-dropdown-arrow', width: 12, height: 12 }); // Removed Lucide creation
+    // aAContainer.appendChild(aADropdownArrow);
+
+    const aAContainer = headerRight.querySelector(".aA-icon"); // Get the existing aA container from HTML
+    const aADropdownArrow = document.createElement("i"); // Create Bootstrap icon for arrow
+    aADropdownArrow.classList.add("aA-dropdown-arrow", "bi", "bi-chevron-down");
+    if (aAContainer) {
+      // Check if aA container exists
+      aAContainer.innerHTML = "aA "; // Clear existing content and add text
+      aAContainer.appendChild(aADropdownArrow); // Append the new arrow icon
+    }
+
+    // The aA container is already in headerRight in the HTML
+    // headerRight.appendChild(aAContainer);
 
     // Using innerHTML for content because Readability provides HTML
     articleViewContent.innerHTML = article.content || "No content available.";
@@ -230,9 +323,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     currentArticleId = null; // Clear current article ID
     document.body.classList.remove("article-view-active"); // Remove body padding class
     // Clear header content when going back - happens in showArticle now, maybe not needed here?
-    // articleView.querySelector(".header-title").textContent = "";
-    // articleView.querySelector(".header-metadata").textContent = "";
-    // articleView.querySelector(".header-url").innerHTML = "";
+    articleView.querySelector(".header-title").textContent = "";
+    articleView.querySelector(".header-metadata").textContent = "";
+    articleView.querySelector(".header-url").innerHTML = "";
+    // Clear icons from the header divs
+    articleView.querySelector(".header-left").innerHTML = "";
+    articleView.querySelector(".header-right").innerHTML = "";
   }
 
   // Remove event listener from the old back button
@@ -241,25 +337,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     backToGridButtonNew.removeEventListener("click", backToGrid);
   }
 
-  // Add event listener to the NEW back icon
-  backToGridIcon.addEventListener("click", backToGrid);
+  // Add event listener to the NEW back icon - This is now added directly after creating the icon in showArticle
+  // backToGridIcon.addEventListener("click", backToGrid);
 
-  // Add click listener to the NEW delete icon in the article view header
-  deleteArticleIcon.addEventListener("click", async () => {
-    if (currentArticleId !== null) {
-      if (confirm("Are you sure you want to delete this article?")) {
-        const success = await deleteArticle(currentArticleId);
-        if (success) {
-          // Remove from UI and array, then go back to grid
-          allArticles = allArticles.filter((a) => a.id !== currentArticleId);
-          backToGrid();
-          renderArticleList(allArticles); // Re-render the grid
-        } else {
-          alert("Failed to delete article.");
-        }
-      }
-    }
-  });
+  // Add click listener to the NEW delete icon in the article view header - This is now added directly after creating the icon in showArticle
+  // deleteArticleIcon.addEventListener("click", async () => {
 
   // --- Initialization ---
   const keys = await getSupabaseKeys();
