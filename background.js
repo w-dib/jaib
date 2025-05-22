@@ -1,17 +1,42 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./secrets.js"; // IMPORT SECRETS HERE
 
-// Create context menu item
+// Store Supabase keys in chrome.storage.local when the extension is installed or updated
 chrome.runtime.onInstalled.addListener(() => {
+  console.log(
+    "Background script: Extension installed or updated. Storing keys in storage.local."
+  );
+  chrome.storage.local.set(
+    {
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY,
+    },
+    () => {
+      if (chrome.runtime.lastError) {
+        console.error("Error storing keys:", chrome.runtime.lastError);
+      } else {
+        console.log("Supabase keys stored in storage.local.");
+      }
+    }
+  );
+
+  // Create context menu item for saving
   chrome.contextMenus.create({
     id: "saveToJaib",
     title: "Save to Jaib",
     contexts: ["page"],
   });
+
+  // NEW: Create context menu item for viewing saved articles
+  chrome.contextMenus.create({
+    id: "viewSavedArticles",
+    title: "View Saved Articles",
+    contexts: ["action", "page"],
+  });
 });
 
 // Handle context menu clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  console.log("Background script: Context menu clicked."); // Added logging
+  console.log("Background script: Context menu clicked.", info.menuItemId); // Added logging
   if (info.menuItemId === "saveToJaib") {
     // Send message to content script to extract content.
     // The content script will immediately show the "Saving..." UI upon receiving "extractContent".
@@ -40,6 +65,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
         }
       }
     );
+  } else if (info.menuItemId === "viewSavedArticles") {
+    // NEW: Handle view saved articles click
+    console.log("Background script: View Saved Articles clicked.");
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("articles.html"), // Open the local HTML file
+    });
   }
 });
 
