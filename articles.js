@@ -89,49 +89,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // Add event listeners for header icons
-  if (deleteArticleIcon) {
-    deleteArticleIcon.addEventListener("click", () => {
-      if (
-        currentArticleId &&
-        confirm("Are you sure you want to delete this article?")
-      ) {
-        deleteArticle(currentArticleId).then((success) => {
-          if (success) {
-            backToGrid();
-            fetchArticles().then((articles) => {
-              renderArticleList(articles);
-            });
-          }
-        });
-      }
-    });
-  }
-
-  if (favoriteArticleIcon) {
-    favoriteArticleIcon.addEventListener("click", () => {
-      if (currentArticleId) {
-        toggleFavoriteStatus(currentArticleId);
-      }
-    });
-  }
-
-  if (shareArticleIcon) {
-    shareArticleIcon.addEventListener("click", () => {
-      const article = allArticles.find((a) => a.id === currentArticleId);
-      if (article?.url) {
-        navigator.clipboard
-          .writeText(article.url)
-          .then(() => alert("URL copied to clipboard!"))
-          .catch((err) => console.error("Error sharing:", err));
-      }
-    });
-  }
-
   // Initialize sticky header
   if (articleView) {
     handleStickyHeader();
   }
+
+  // Add header icon listeners only once
+  addHeaderIconListeners();
 });
 
 // Function to fetch keys from storage
@@ -387,9 +351,6 @@ function showArticle(articleId) {
     articleView.style.display = "block";
   }
 
-  // Add event listeners to the header icons
-  addHeaderIconListeners();
-
   // Add scroll listener when article view is shown
   window.addEventListener("scroll", handleStickyHeader);
 
@@ -450,7 +411,7 @@ async function toggleFavoriteStatus(articleId) {
   }
 }
 
-// Add event listeners to the header icons
+// Add event listeners to the header icons - Call this only once on DOMContentLoaded
 function addHeaderIconListeners() {
   // Delete icon listener
   if (deleteArticleIcon) {
@@ -530,6 +491,8 @@ function backToGrid() {
     articleView.style.display = "none";
     articlesGrid.style.display = "grid";
   }
+  // Remove the scroll listener when going back to the grid
+  window.removeEventListener("scroll", handleStickyHeader);
 }
 
 // Move initialization into an async function
@@ -561,6 +524,14 @@ async function initializeApp() {
 
 // Call the initialization function after DOM is loaded
 document.addEventListener("DOMContentLoaded", () => {
+  // Get DOM elements once the DOM is ready
+  articlesGrid = document.getElementById("articles-grid");
+  articleView = document.getElementById("article-view");
+  articleViewMainContent = document.getElementById("article-view-main-content");
+  deleteArticleIcon = document.getElementById("delete-article-icon");
+  favoriteArticleIcon = document.getElementById("favorite-article-icon");
+  shareArticleIcon = document.getElementById("share-article-icon");
+
   initializeApp().catch((error) => {
     console.error("Error in initialization:", error);
     if (articlesGrid) {
@@ -568,56 +539,46 @@ document.addEventListener("DOMContentLoaded", () => {
         "Error initializing app. Please check the console.";
     }
   });
-});
 
-// Add event listener for delete buttons in the grid view
-articlesGrid.addEventListener("click", async (event) => {
-  if (event.target.classList.contains("delete-button")) {
-    const articleIdToDelete = event.target.dataset.id;
-    if (
-      articleIdToDelete &&
-      confirm("Are you sure you want to delete this article?")
-    ) {
-      const success = await deleteArticle(articleIdToDelete);
-      if (success) {
-        // Remove the article item from the DOM if deletion was successful
-        const articleItemElement = event.target.closest(".article-item");
-        if (articleItemElement) {
-          articleItemElement.remove();
+  // Add event listener for delete buttons in the grid view
+  if (articlesGrid) {
+    articlesGrid.addEventListener("click", async (event) => {
+      if (event.target.classList.contains("delete-button")) {
+        const articleIdToDelete = event.target.dataset.id;
+        if (
+          articleIdToDelete &&
+          confirm("Are you sure you want to delete this article?")
+        ) {
+          const success = await deleteArticle(articleIdToDelete);
+          if (success) {
+            const articleItemElement = event.target.closest(".article-item");
+            if (articleItemElement) {
+              articleItemElement.remove();
+            }
+            allArticles = allArticles.filter((a) => a.id !== articleIdToDelete);
+          } else {
+            alert("Failed to delete the article.");
+          }
         }
-        // Also remove from the local array
-        allArticles = allArticles.filter((a) => a.id !== articleIdToDelete);
-      } else {
-        alert("Failed to delete the article.");
       }
-    }
+    });
+
+    // Add event listener for opening articles from the grid
+    articlesGrid.addEventListener("click", (event) => {
+      console.log("Grid clicked:", event.target);
+      const articleItemElement = event.target.closest(".article-item");
+      if (articleItemElement) {
+        console.log("Clicked inside an article item:", articleItemElement);
+        if (!event.target.closest(".delete-button")) {
+          const articleId = articleItemElement.dataset.id;
+          console.log("Attempting to show article with ID:", articleId);
+          if (articleId) {
+            showArticle(articleId);
+          } else {
+            console.warn("Article ID not found on clicked item.");
+          }
+        }
+      }
+    });
   }
 });
-
-// Add event listener for opening articles from the grid (using event delegation)
-if (articlesGrid) {
-  articlesGrid.addEventListener("click", (event) => {
-    console.log("Grid clicked:", event.target); // Log the click target
-
-    // Find the closest ancestor with the class 'article-item'
-    const articleItemElement = event.target.closest(".article-item");
-
-    // Check if a click occurred within an article item
-    if (articleItemElement) {
-      console.log("Clicked inside an article item:", articleItemElement); // Log if inside article item
-
-      // Check if the click was NOT on the delete button specifically
-      if (!event.target.closest(".delete-button")) {
-        const articleId = articleItemElement.dataset.id;
-        console.log("Attempting to show article with ID:", articleId); // Log the article ID
-        if (articleId) {
-          showArticle(articleId);
-        } else {
-          console.warn("Article ID not found on clicked item."); // Warn if ID is missing
-        }
-      } else {
-        console.log("Clicked on delete button, not opening article."); // Log if delete button clicked
-      }
-    }
-  });
-}
