@@ -1,23 +1,54 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./secrets.js"; // IMPORT SECRETS HERE
 
+// Function to verify storage
+async function verifyStorage() {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(["supabaseUrl", "supabaseAnonKey"], (result) => {
+      console.log("Verifying storage:", {
+        hasUrl: !!result.supabaseUrl,
+        hasKey: !!result.supabaseAnonKey,
+        url: result.supabaseUrl,
+        key: result.supabaseAnonKey ? "present" : "missing",
+      });
+      resolve(result);
+    });
+  });
+}
+
 // Store Supabase keys in chrome.storage.local when the extension is installed or updated
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   console.log(
     "Background script: Extension installed or updated. Storing keys in storage.local."
   );
-  chrome.storage.local.set(
-    {
-      supabaseUrl: SUPABASE_URL,
-      supabaseAnonKey: SUPABASE_ANON_KEY,
-    },
-    () => {
-      if (chrome.runtime.lastError) {
-        console.error("Error storing keys:", chrome.runtime.lastError);
-      } else {
-        console.log("Supabase keys stored in storage.local.");
+
+  // First verify if keys are already stored
+  const existingKeys = await verifyStorage();
+
+  // Only store if keys are missing or different
+  if (
+    !existingKeys.supabaseUrl ||
+    !existingKeys.supabaseAnonKey ||
+    existingKeys.supabaseUrl !== SUPABASE_URL ||
+    existingKeys.supabaseAnonKey !== SUPABASE_ANON_KEY
+  ) {
+    chrome.storage.local.set(
+      {
+        supabaseUrl: SUPABASE_URL,
+        supabaseAnonKey: SUPABASE_ANON_KEY,
+      },
+      () => {
+        if (chrome.runtime.lastError) {
+          console.error("Error storing keys:", chrome.runtime.lastError);
+        } else {
+          console.log("Supabase keys stored in storage.local.");
+          // Verify storage after setting
+          verifyStorage();
+        }
       }
-    }
-  );
+    );
+  } else {
+    console.log("Supabase keys already present in storage.");
+  }
 
   // Create context menu item for saving
   chrome.contextMenus.create({
@@ -35,71 +66,106 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Handle context menu clicks
-chrome.contextMenus.onClicked.addListener((info, tab) => {
-  console.log("Background script: Context menu clicked.", info.menuItemId); // Added logging
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  console.log("Background script: Context menu clicked.", info.menuItemId);
+
   if (info.menuItemId === "saveToJaib") {
-    // Send message to content script to extract content.
-    // The content script will immediately show the "Saving..." UI upon receiving "extractContent".
-    // We use sendMessage with a callback to catch if the content script isn't there.
+    try {
+      // First try to inject the content script
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ["Readability.js", "content.js"],
+      });
+
+      // Then send the message
+      chrome.tabs.sendMessage(
+        tab.id,
+        { action: "extractContent" },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            console.error(
+              "Background script: Error sending extractContent message from context menu:",
+              chrome.runtime.lastError.message
+            );
+            chrome.notifications.create({
+              type: "basic",
+              iconUrl: "icons/icon48.png",
+              title: "Save Failed",
+              message: "Could not connect to the page. Try refreshing it.",
+              priority: 2,
+            });
+          } else {
+            console.log(
+              "Background script: extractContent message sent to content script successfully from context menu."
+            );
+          }
+        }
+      );
+    } catch (error) {
+      console.error("Error injecting content script:", error);
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: "icons/icon48.png",
+        title: "Save Failed",
+        message:
+          "Could not inject content script. This page may be restricted.",
+        priority: 2,
+      });
+    }
+  } else if (info.menuItemId === "viewSavedArticles") {
+    console.log("Background script: View Saved Articles clicked.");
+    chrome.tabs.create({
+      url: chrome.runtime.getURL("articles.html"),
+    });
+  }
+});
+
+// NEW: Handle clicks on the extension toolbar icon
+chrome.action.onClicked.addListener(async (tab) => {
+  console.log("Background script: Toolbar icon clicked."); // Added logging
+
+  try {
+    // First try to inject the content script
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ["Readability.js", "content.js"],
+    });
+
+    // Then send the message
     chrome.tabs.sendMessage(
       tab.id,
       { action: "extractContent" },
       (response) => {
         if (chrome.runtime.lastError) {
           console.error(
-            "Background script: Error sending extractContent message from context menu:",
+            "Background script: Error sending extractContent message from action icon:",
             chrome.runtime.lastError.message
-          ); // Added logging
+          );
           // If content script doesn't exist (e.g. chrome:// page), use a notification fallback
           chrome.notifications.create({
             type: "basic",
-            iconUrl: "icons/icon48.png", // Make sure this icon path is correct
+            iconUrl: "icons/icon48.png",
             title: "Save Failed",
             message: "Could not connect to the page. Try refreshing it.",
             priority: 2,
           });
         } else {
           console.log(
-            "Background script: extractContent message sent to content script successfully from context menu."
-          ); // Added logging
+            "Background script: extractContent message sent to content script successfully from action icon."
+          );
         }
       }
     );
-  } else if (info.menuItemId === "viewSavedArticles") {
-    // NEW: Handle view saved articles click
-    console.log("Background script: View Saved Articles clicked.");
-    chrome.tabs.create({
-      url: chrome.runtime.getURL("articles.html"), // Open the local HTML file
+  } catch (error) {
+    console.error("Error injecting content script:", error);
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: "icons/icon48.png",
+      title: "Save Failed",
+      message: "Could not inject content script. This page may be restricted.",
+      priority: 2,
     });
   }
-});
-
-// NEW: Handle clicks on the extension toolbar icon
-chrome.action.onClicked.addListener((tab) => {
-  console.log("Background script: Toolbar icon clicked."); // Added logging
-  // Send message to content script to extract content.
-  // The content script will immediately show the "Saving..." UI upon receiving "extractContent".
-  // We use sendMessage with a callback to catch if the content script isn't there.
-  chrome.tabs.sendMessage(tab.id, { action: "extractContent" }, (response) => {
-    if (chrome.runtime.lastError) {
-      console.error(
-        "Background script: Error sending extractContent message from action icon:",
-        chrome.runtime.lastError.message
-      ); // Added logging
-      // If content script doesn't exist (e.g. chrome:// page), use a notification fallback
-      chrome.notifications.create({
-        type: "basic",
-        iconUrl: "icons/icon48.png", // Make sure this icon path is correct
-        title: "Save Failed",
-        message: "Could not connect to the page. Try refreshing it.",
-        priority: 2,
-      });
-    } else {
-      console.log(
-        "Background script: extractContent message sent to content script successfully from action icon."
-      ); // Added logging
-    }
-  });
 });
 
 async function saveArticleToSupabase(article) {

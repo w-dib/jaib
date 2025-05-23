@@ -13,7 +13,7 @@
           Oxygen, Ubuntu, Cantarell, sans-serif;
         margin: 0;
         padding: 0; /* Remove body padding as we will add padding to content */
-        background-color: #f0f0f0; /* Light gray background */
+        background-color: #ffffff; /* Changed to white background */
         line-height: 1.6; /* Improve default line height */
         color: #333; /* Default text color */
       }
@@ -32,6 +32,7 @@
         gap: 20px; /* Space between grid items */
         justify-content: center; /* Center grid if items don't fill width */
         padding: 0 20px; /* Add horizontal padding */
+        padding-top: 20px;
       }
 
       .article-item {
@@ -147,163 +148,187 @@
       #article-view {
         display: none;
         background-color: #fff;
-        border-radius: 8px; /* Keep some rounding for the view itself */
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Keep a subtle shadow */
-        max-width: 900px; /* Increase max width slightly for content */
-        margin: 20px auto; /* Center the view on the page */
-        padding: 0; /* Remove padding here, handled in content area */
-        line-height: 1.7;
-        font-size: 1.1em;
+        border-radius: 0; /* Remove border radius for full-width look */
+        box-shadow: none; /* Remove shadow for cleaner look */
+        max-width: 100%; /* Full width */
+        margin: 0; /* Remove margin */
+        padding: 0;
+        line-height: 1.8; /* Increased line height */
+        font-size: 1.4em; /* Increased font size */
       }
 
-      /* NEW sticky header styles */
+      /* Updated sticky header styles */
       .article-view-sticky-header {
-        position: sticky;
+        position: absolute; /* Change to absolute initially */
         top: 0;
-        background-color: #fff; /* White background for header */
-        padding: 15px 20px;
+        left: 0;
+        right: 0;
+        background-color: #fff;
+        padding: 15px 20px; /* Adjust padding as needed */
         border-bottom: 1px solid #eee;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        z-index: 10; /* Ensure header stays on top */
+        z-index: 1000;
+        height: 60px; /* Ensure consistent height */
+        box-sizing: border-box; /* Include padding and border in element's total width and height */
+      }
+
+      .article-view-sticky-header.is-sticky {
+        position: fixed; /* Fixed when sticky */
+        /* top, left, right already defined above */
+        border-bottom: 1px solid #ccc; /* Slightly darker border when sticky */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Add subtle shadow when sticky */
       }
 
       .header-left,
-      .header-center,
       .header-right {
         display: flex;
         align-items: center;
-        gap: 15px; /* Space between icons/elements */
+        flex-shrink: 0; /* Prevent shrinking */
       }
 
       .header-center {
-        flex-grow: 1; /* Allow center to take space */
         display: flex;
-        flex-direction: column; /* Stack elements vertically */
-        align-items: center; /* Center text block */
-        text-align: center;
-        padding: 0 20px; /* Add horizontal padding */
+        align-items: center;
+        gap: 20px; /* Space between icons */
+        flex-grow: 1; /* Allow center to take space, pushing left/right out */
+        justify-content: center; /* Center icons within the available space */
       }
 
       .header-icon {
-        font-size: 1.4em; /* Adjust size for Bootstrap Icons */
-        color: #555; /* Default icon color */
+        font-size: 1.5em; /* Slightly larger icons */
+        color: #555;
         transition: color 0.2s ease-in-out;
+        cursor: pointer;
       }
 
       .header-icon:hover {
-        color: #333; /* Hover color */
+        color: #000; /* Darken on hover */
       }
 
       .delete-icon:hover {
-        color: #f44336; /* Red for delete on hover */
+        color: #d32f2f; /* Darker red on hover */
       }
 
-      /* Styles for metadata within the header center */
+      .star-icon {
+        color: #555;
+      }
+
+      .star-icon.active {
+        color: #ffc107; /* Amber/Gold color for active star */
+      }
+
+      /* Article metadata styles - moved outside of sticky header */
+      .article-metadata {
+        padding: 80px 20px 20px 20px; /* Add top padding to account for non-sticky header height + some space*/
+        text-align: center; /* Center text content */
+        background-color: #fff;
+        max-width: 800px; /* Align width with main content */
+        margin: 0 auto; /* Center the block */
+      }
+
       .header-title {
-        font-size: 1.6em; /* Larger title font size */
-        font-weight: bold;
+        font-size: 2.2em; /* Larger title */
+        font-weight: 700; /* Bold */
         color: #333;
-        margin: 0 0 5px 0; /* Margin below title */
-        padding: 0;
-        line-height: 1.3;
+        margin: 0 0 15px 0; /* More space below title */
+        line-height: 1.2;
+        word-break: break-word; /* Prevent long words from overflowing */
       }
 
       .header-metadata {
-        font-size: 0.9em;
+        font-size: 1em; /* Consistent size */
         color: #666;
-        margin: 0 0 10px 0; /* Margin below metadata line */
-        padding: 0;
+        margin: 0 0 15px 0; /* More space below metadata */
+      }
+
+      .header-url {
+        text-align: center; /* Center the link within the div */
       }
 
       .header-url a {
         font-size: 0.9em;
-        color: #007bff; /* Blue for links */
+        color: #007bff;
         text-decoration: none;
-        display: flex; /* Align icon and text */
+        display: inline-flex; /* Use inline-flex for centering link */
         align-items: center;
-        gap: 5px; /* Space between text and icon */
+        gap: 5px;
       }
+
       .header-url a:hover {
         text-decoration: underline;
       }
-      .header-url .bi-box-arrow-up-right {
-        font-size: 0.9em; /* Smaller size for link icon */
-        color: #007bff; /* Match link color */
-      }
-
-      .aA-icon {
-        font-size: 1.4em; /* Larger aA icon */
-        font-weight: bold;
-        color: #555;
-        cursor: pointer;
-      }
-      .aA-dropdown-arrow {
-        font-size: 0.8em; /* Smaller size for arrow */
-        color: #555; /* Match aA icon color */
-      }
 
       .article-view-main-content {
-        padding: 20px; /* Padding inside the content area */
-        max-width: 700px; /* Limit content width for readability */
-        margin: 0 auto; /* Center the content block */
+        /* padding managed by JS when sticky */
+        max-width: 800px; /* Increased max width to 800px */
+        margin: 0 auto; /* Center the main content block */
+        font-size: 1.1em; /* Slightly adjusted body font size */
+        line-height: 1.7; /* Slightly adjusted line height for readability */
+        display: block; /* Ensure it's a block element */
+        padding: 20px; /* Add default padding */
       }
 
       /* Styling for content extracted by Readability */
-      #article-view .content h1,
-      #article-view .content h2,
-      #article-view .content h3,
-      #article-view .content h4,
-      #article-view .content h5,
-      #article-view .content h6 {
-        color: #333;
-        margin-top: 1.5em;
-        margin-bottom: 0.5em;
-        line-height: 1.3;
-      }
-      #article-view .content h1 {
-        font-size: 1.8em;
-      }
-      #article-view .content h2 {
-        font-size: 1.6em;
-      }
-      #article-view .content h3 {
-        font-size: 1.4em;
-      }
-      #article-view .content h4 {
-        font-size: 1.2em;
-      }
-      #article-view .content p {
-        margin-bottom: 1em;
-      }
-      #article-view .content img {
-        max-width: 100%;
-        height: auto;
+      #article-view-main-content img {
+        max-width: 100%; /* Ensure images don't exceed container width */
+        height: auto; /* Maintain aspect ratio */
         display: block;
-        margin: 1em auto;
+        margin: 1.5em auto; /* Increased margin around images */
+        box-sizing: border-box; /* Include padding and border in the element's total width and height */
       }
-      #article-view .content figcaption {
+
+      #article-view-main-content .content h1,
+      #article-view-main-content .content h2,
+      #article-view-main-content .content h3,
+      #article-view-main-content .content h4,
+      #article-view-main-content .content h5,
+      #article-view-main-content .content h6 {
+        color: #333;
+        margin-top: 1.8em; /* Increased top margin */
+        margin-bottom: 0.6em; /* Slightly increased bottom margin */
+        line-height: 1.4; /* Adjusted line height */
+        word-break: break-word; /* Prevent long words from overflowing */
+      }
+
+      #article-view-main-content .content h1 {
+        font-size: 1.8em; /* Adjusted relative to new base */
+      }
+      #article-view-main-content .content h2 {
+        font-size: 1.5em; /* Adjusted relative to new base */
+      }
+      #article-view-main-content .content h3 {
+        font-size: 1.3em; /* Adjusted relative to new base */
+      }
+      #article-view-main-content .content h4 {
+        font-size: 1.1em; /* Adjusted relative to new base */
+      }
+
+      #article-view-main-content .content p {
+        margin-bottom: 1.2em; /* Increased bottom margin for paragraphs */
+      }
+      #article-view-main-content .content figcaption {
         font-size: 0.9em;
         text-align: center;
         color: #888;
         margin-top: 0.5em;
-        margin-bottom: 1em;
+        margin-bottom: 1.5em; /* Increased bottom margin */
       }
-      #article-view .content blockquote {
+      #article-view-main-content .content blockquote {
         border-left: 4px solid #ff9800; /* Keep orange border */
-        padding-left: 1em;
-        margin-left: 0;
+        padding: 1.2em; /* Increased padding */
+        margin: 1.5em 0; /* Added vertical margins */
         font-style: italic;
         color: #555;
       }
-      #article-view .content ul,
-      #article-view .content ol {
-        margin-bottom: 1em;
-        padding-left: 1.5em;
+      #article-view-main-content .content ul,
+      #article-view-main-content .content ol {
+        margin-bottom: 1.2em; /* Increased bottom margin */
+        padding-left: 2em; /* Increased padding */
       }
-      #article-view .content li {
-        margin-bottom: 0.5em;
+      #article-view-main-content .content li {
+        margin-bottom: 0.6em; /* Increased margin between list items */
       }
 
       /* Hide the old back button */
@@ -312,57 +337,81 @@
       }
 
       /* Adjust body padding when article view is shown to prevent content jump */
+      /* This rule might not be needed anymore if padding is handled by JS on main-content */
+      /* Let's keep it commented out for now */
+      /*
       body.article-view-active {
-        padding-top: 60px; /* Adjust based on header height */
+        padding-top: 60px;
       }
+      */
+
+      /* Add cursor pointer to all interactive elements */
+      .header-icon,
+      .aA-icon,
+      .header-url a,
+      .back-button,
+      .delete-icon {
+        cursor: pointer;
+      }
+
+      /* CSS for the sticky header when active */
+      .article-view-sticky-header.is-sticky {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        width: 100%; /* Ensure it spans full width when fixed */
+        /* Other styles like background-color, padding, border-bottom are already on .article-view-sticky-header */
+      }
+
+      /* Ensure metadata is not hidden by sticky header */
+      /* No specific rule needed here, as the header is taken out of flow
+         and padding on content pushes it down. Just ensure no negative margins
+         or absolute positioning on metadata itself. */
     </style>
   </head>
   <body>
-    <h1>My Saved Articles</h1>
-
     <div id="articles-grid">
       <!-- Article items will be loaded here by articles.js -->
       Loading articles...
     </div>
 
     <div id="article-view">
-      <!-- NEW: Sticky Header Toolbar -->
       <div class="article-view-sticky-header">
         <div class="header-left">
-          <!-- Back Button (Icon) -->
-          <i id="back-to-grid-icon" class="header-icon bi bi-arrow-left"></i>
+          <!-- Back icon will be added by JS -->
         </div>
         <div class="header-center">
-          <!-- Title, Byline, Source, Reading Time, View Original Link go here - populated by JS -->
-          <div class="header-title"></div>
-          <div class="header-metadata"></div>
-          <div class="header-url"></div>
-        </div>
-        <div class="header-right">
-          <!-- Highlighter Icon (non-functional) -->
-          <i class="header-icon bi bi-highlighter"></i>
-          <!-- Trash Can Icon (functional delete) -->
+          <i id="share-article-icon" class="header-icon bi bi-share"></i>
+          <!-- Share icon is now static -->
+          <i
+            id="favorite-article-icon"
+            class="header-icon star-icon bi bi-star"
+          ></i>
           <i
             id="delete-article-icon"
             class="header-icon delete-icon bi bi-trash"
           ></i>
-          <!-- Share Icon (non-functional) -->
-          <i class="header-icon bi bi-share"></i>
-          <!-- aA Icon (non-functional) -->
-          <div class="aA-icon">aA</div>
-          <!-- Dropdown Arrow (non-functional) -->
-          <i class="aA-dropdown-arrow bi bi-chevron-down"></i>
+        </div>
+        <div class="header-right">
+          <i class="header-icon bi bi-type"></i>
+          <i class="header-icon bi bi-chevron-down"></i>
         </div>
       </div>
 
-      <!-- Main Content Area -->
-      <div class="article-view-main-content">
-        <div id="article-view-content" class="content"></div>
+      <!-- Article Metadata - This is above the main content -->
+      <div class="article-metadata">
+        <h1 class="header-title"></h1>
+        <p class="header-metadata"></p>
+        <div class="header-url"></div>
       </div>
-      <!-- Hide the old back button -->
-      <!-- <button id="back-to-grid">Back to All Articles</button> -- Removed from here -->
+
+      <!-- Main Content Area - Padding applied here when sticky -->
+      <div id="article-view-main-content" class="article-view-main-content">
+        <!-- Article content will be loaded here by articles.js -->
+      </div>
     </div>
 
-    <script src="articles.js"></script>
+    <script src="articles.js" type="module"></script>
   </body>
 </html>

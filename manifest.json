@@ -11,6 +11,9 @@
     "notifications"
   ],
   "host_permissions": ["<all_urls>"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;"
+  },
   "action": {
     "default_icon": {
       "16": "icons/icon16.png",
@@ -25,7 +28,14 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["Readability.js", "content.js"]
+      "js": ["Readability.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["articles.html"],
+      "matches": ["<all_urls>"]
     }
   ],
   "icons": {
