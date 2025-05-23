@@ -82,9 +82,9 @@
 
       .article-item h2 {
         margin-top: 0;
-        font-size: 1.1em;
+        font-size: 1.65em; /* Increased font size to match header links */
         color: #333;
-        margin-bottom: 5px;
+        margin-bottom: 2px; /* Reduced space below title */
         line-height: 1.3;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -104,13 +104,13 @@
       }
       .article-item-footer {
         display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
+        justify-content: center; /* Center the icons */
+        align-items: center; /* Vertically align icons */
         margin-top: auto;
         padding-top: 10px;
         border-top: 1px solid #eee;
-        font-size: 0.8em;
-        color: #888;
+        gap: 15px; /* Space between icons */
+        padding: 10px 15px 10px 15px; /* Add some padding around the footer icons */
       }
 
       .article-item .byline {
@@ -130,16 +130,12 @@
         padding: 5px 10px;
         cursor: pointer;
         font-size: 0.8em;
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-        z-index: 5;
-        opacity: 0;
+        display: none; /* Hide the old delete button */
         transition: opacity 0.2s ease-in-out;
       }
 
       .article-item:hover .delete-button {
-        opacity: 1;
+        opacity: 1; /* Keep opacity transition if needed for other effects, but display: none hides it */
       }
 
       .delete-button:hover {
@@ -198,7 +194,7 @@
       }
 
       .header-icon {
-        font-size: 1.5em; /* Slightly larger icons */
+        font-size: 1.6em; /* Ensure consistent icon size across headers */
         color: #555;
         transition: color 0.2s ease-in-out;
         cursor: pointer;
@@ -342,7 +338,8 @@
       .aA-icon,
       .header-url a,
       .back-button,
-      .delete-icon {
+      .delete-icon, /* Keep for article view header */
+      .article-item-icon /* Add for new grid item icons */ {
         cursor: pointer;
       }
 
@@ -435,15 +432,48 @@
         transition: width 0.2s ease-in-out; /* Animation for width change */
       }
 
-      .grid-sticky-header .header-icon {
-        font-size: 1.6em; /* Slightly increased icon size for consistency */
-        color: #555;
-        transition: color 0.2s ease-in-out;
-        cursor: pointer;
+      .grid-sticky-header .header-right {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        gap: 10px;
       }
 
-      .grid-sticky-header .header-icon:hover {
-        color: #000;
+      /* Style for icons within article grid items */
+      .article-item-icon {
+        font-size: 1.6em; /* Match header icon size */
+        color: #555; /* Default icon color */
+        transition: color 0.2s ease-in-out;
+      }
+
+      .article-item-icon:hover {
+        color: #000; /* Darken on hover */
+      }
+
+      .article-item-icon.favorite-icon.active {
+        color: #ffc107; /* Orange/Gold for active favorite */
+      }
+
+      .article-item-icon.delete-icon:hover {
+        color: #d32f2f; /* Darker red on hover for trash icon */
+      }
+
+      .article-item-metadata {
+        padding: 0 15px 10px 15px; /* Padding above the footer icons */
+        margin-top: 5px; /* Reduced space above metadata */
+        font-size: 0.9em;
+        color: #666;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .article-item-metadata .source {
+        flex-grow: 1;
+        margin-right: 10px; /* Space between source and read time */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     </style>
   </head>

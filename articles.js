@@ -74,30 +74,134 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Add event listeners for article items
   if (articlesGrid) {
-    articlesGrid.addEventListener("click", (e) => {
-      const articleItem = e.target.closest(".article-item");
-      if (articleItem) {
-        const articleId = articleItem.dataset.id;
-        if (articleId) {
-          showArticle(articleId);
-        }
+    articlesGrid.addEventListener("click", async (event) => {
+      const articleItemElement = event.target.closest(".article-item");
+      const articleId = articleItemElement?.dataset.id; // Get article ID from the closest article item
+
+      if (!articleId) {
+        // If no article item was clicked or no ID, do nothing
+        return;
       }
 
-      // Handle delete button clicks
-      if (e.target.classList.contains("delete-button")) {
-        const articleId = e.target.dataset.id;
-        if (
-          articleId &&
-          confirm("Are you sure you want to delete this article?")
-        ) {
-          deleteArticle(articleId).then((success) => {
-            if (success) {
-              fetchArticles().then((articles) => {
-                renderArticleList(articles);
-              });
-            }
-          });
+      const target = event.target;
+
+      // Handle icon clicks
+      if (target.classList.contains("copy-icon-item")) {
+        event.stopPropagation(); // Stop propagation
+        console.log("Copy icon clicked for article ID:", articleId);
+        const articleToCopy = allArticles.find(
+          (a) => a.id === parseInt(articleId, 10)
+        );
+        if (articleToCopy?.url) {
+          navigator.clipboard
+            .writeText(articleToCopy.url)
+            .then(() => showNotification("URL copied to clipboard!"))
+            .catch((err) => console.error("Error copying URL:", err));
         }
+      } else if (target.classList.contains("favorite-icon-item")) {
+        event.stopPropagation(); // Stop propagation
+        console.log("Favorite icon clicked for article ID:", articleId);
+        const articleToFavorite = allArticles.find(
+          (a) => a.id === parseInt(articleId, 10)
+        );
+        if (!articleToFavorite) return;
+
+        const originalFavoriteStatus = articleToFavorite.is_favorite;
+
+        // Optimistically update UI
+        target.classList.toggle("active");
+        target.classList.toggle("bi-star");
+        target.classList.toggle("bi-star-fill");
+
+        // Update local state
+        articleToFavorite.is_favorite = !originalFavoriteStatus;
+
+        // Update database
+        const success = await toggleFavoriteStatus(parseInt(articleId, 10));
+        if (!success) {
+          // Revert UI and local state if database update fails
+          target.classList.toggle("active");
+          target.classList.toggle("bi-star");
+          target.classList.toggle("bi-star-fill");
+          articleToFavorite.is_favorite = originalFavoriteStatus;
+          alert("Failed to update favorite status. Please try again.");
+        }
+        // If currently on Favorites tab and unfavoriting, remove the article from view
+        const currentTab = document
+          .querySelector(".grid-sticky-header .header-center span.active")
+          .textContent.toLowerCase();
+        if (currentTab === "favorites" && !articleToFavorite.is_favorite) {
+          articleItemElement.remove(); // Remove from DOM
+        }
+      } else if (target.classList.contains("bookmark-icon-item")) {
+        event.stopPropagation(); // Stop propagation
+        console.log("Read icon clicked for article ID:", articleId);
+        const articleToRead = allArticles.find(
+          (a) => a.id === parseInt(articleId, 10)
+        );
+        if (!articleToRead) return;
+
+        const originalReadStatus = articleToRead.is_read;
+
+        // Optimistically update UI
+        target.classList.toggle("bi-bookmark-check");
+        target.classList.toggle("bi-bookmark-check-fill");
+
+        // Update local state
+        articleToRead.is_read = !originalReadStatus;
+
+        // Update database
+        const success = await toggleReadStatus(parseInt(articleId, 10));
+        if (!success) {
+          // Revert UI and local state if database update fails
+          target.classList.toggle("bi-bookmark-check");
+          target.classList.toggle("bi-bookmark-check-fill");
+          articleToRead.is_read = originalReadStatus;
+          alert("Failed to update read status. Please try again.");
+        } else {
+          showNotification(
+            `Article marked as ${articleToRead.is_read ? "read" : "unread"}`
+          );
+          // Re-render the list if currently on Saves or Archives tab
+          const currentTab = document
+            .querySelector(".grid-sticky-header .header-center span.active")
+            .textContent.toLowerCase();
+          if (currentTab === "saves" || currentTab === "archives") {
+            filterAndRenderArticles(currentTab);
+          }
+        }
+      } else if (target.classList.contains("trash-icon-item")) {
+        event.stopPropagation(); // Stop propagation
+        console.log("Trash icon clicked for article ID:", articleId);
+        if (confirm("Are you sure you want to delete this article?")) {
+          const success = await deleteArticle(parseInt(articleId, 10));
+          if (success) {
+            // Remove from DOM
+            articleItemElement.remove();
+            // Remove from local state
+            allArticles = allArticles.filter(
+              (a) => a.id !== parseInt(articleId, 10)
+            );
+            // Re-render the list to update counts/display if necessary (e.g., if the last item of a filter is deleted)
+            const currentTab = document
+              .querySelector(".grid-sticky-header .header-center span.active")
+              .textContent.toLowerCase();
+            filterAndRenderArticles(currentTab);
+          } else {
+            alert("Failed to delete the article.");
+          }
+        }
+      } else if (
+        articleItemElement &&
+        !target.closest(".article-item-footer")
+      ) {
+        // Handle clicks on the article item itself (excluding footer icons) to show the article view
+        console.log(
+          "Clicked inside an article item (excluding footer):",
+          articleItemElement
+        );
+        console.log("Attempting to show article with ID:", articleId);
+        showArticle(articleId);
       }
     });
   }
@@ -200,6 +304,24 @@ function renderArticleList(articles) {
 
     const imageUrl = findFirstImageSrc(article.content); // Find image
 
+    // Calculate estimated reading time (simple word count / 200 wpm)
+    const wordCount = article.content ? article.content.split(/\s+/).length : 0;
+    const readingTimeMinutes = Math.ceil(wordCount / 200);
+    const readingTimeText =
+      readingTimeMinutes > 0 ? `${readingTimeMinutes} min read` : "";
+
+    // Extract source from URL
+    let source = "";
+    try {
+      if (article.url) {
+        const urlObj = new URL(article.url);
+        source = urlObj.hostname.replace(/^www\./, ""); // Remove www.
+      }
+    } catch (e) {
+      console.error("Error parsing URL for source:", e);
+      source = article.url || ""; // Fallback to full URL if parsing fails
+    }
+
     articleItem.innerHTML = `
                 <div class="article-image-container">
                     ${
@@ -210,19 +332,27 @@ function renderArticleList(articles) {
                 </div>
                 <div class="article-content-area">
                     <h2>${article.title || "Untitled"}</h2>
-                    <p>${article.excerpt || "No excerpt available."}</p>
-                    <div class="article-item-footer">
-                        ${
-                          article.byline
-                            ? `<div class="byline">By ${article.byline}</div>`
-                            : "<div></div>"
-                        }
-                        <!-- Add date saved here later? -->
+                    <div class="article-item-metadata">
+                      <span class="source">${source}</span>
+                      <span class="read-time">${readingTimeText}</span>
                     </div>
                 </div>
-                <button class="delete-button" data-id="${
-                  article.id
-                }">Delete</button> <!-- Delete button -->
+                <div class="article-item-footer">
+                    <i class="article-item-icon copy-icon-item bi bi-copy" data-id="${
+                      article.id
+                    }"></i>
+                    <i class="article-item-icon favorite-icon-item bi ${
+                      article.is_favorite ? "bi-star-fill active" : "bi-star"
+                    }" data-id="${article.id}"></i>
+                    <i class="article-item-icon bookmark-icon-item bi ${
+                      article.is_read
+                        ? "bi-bookmark-check-fill"
+                        : "bi-bookmark-check"
+                    }" data-id="${article.id}"></i>
+                    <i class="article-item-icon trash-icon-item bi bi-trash" data-id="${
+                      article.id
+                    }"></i>
+                </div>
             `;
 
     articlesGrid.appendChild(articleItem);
@@ -805,48 +935,6 @@ document.addEventListener("DOMContentLoaded", () => {
         "Error initializing app. Please check the console.";
     }
   });
-
-  // Add event listener for delete buttons in the grid view
-  if (articlesGrid) {
-    articlesGrid.addEventListener("click", async (event) => {
-      if (event.target.classList.contains("delete-button")) {
-        const articleIdToDelete = event.target.dataset.id;
-        if (
-          articleIdToDelete &&
-          confirm("Are you sure you want to delete this article?")
-        ) {
-          const success = await deleteArticle(articleIdToDelete);
-          if (success) {
-            const articleItemElement = event.target.closest(".article-item");
-            if (articleItemElement) {
-              articleItemElement.remove();
-            }
-            allArticles = allArticles.filter((a) => a.id !== articleIdToDelete);
-          } else {
-            alert("Failed to delete the article.");
-          }
-        }
-      }
-    });
-
-    // Add event listener for opening articles from the grid
-    articlesGrid.addEventListener("click", (event) => {
-      console.log("Grid clicked:", event.target);
-      const articleItemElement = event.target.closest(".article-item");
-      if (articleItemElement) {
-        console.log("Clicked inside an article item:", articleItemElement);
-        if (!event.target.closest(".delete-button")) {
-          const articleId = articleItemElement.dataset.id;
-          console.log("Attempting to show article with ID:", articleId);
-          if (articleId) {
-            showArticle(articleId);
-          } else {
-            console.warn("Article ID not found on clicked item.");
-          }
-        }
-      }
-    });
-  }
 
   // Add event listeners for the new grid header navigation links
   if (savesLink)

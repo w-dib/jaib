@@ -1,0 +1,8 @@
+[33m5dfe53e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m add read/unread functionality
+[33m91932e9[m Fix favorites in database
+[33m8ada3a1[m fix: remove duplicate event listeners causing multiple popups
+[33m8097706[m update UI/UX of article page
+[33m0594806[m use bootstrap icons
+[33mf8f419f[m Refine saved article viewer UI to match Pocket
+[33mfd60cd3[m Implement saved articles viewer page and unify saving feedback
+[33m29065b7[m Initial commit: Implement core saving logic and in-page status UI
