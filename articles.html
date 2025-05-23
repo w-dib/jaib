@@ -336,15 +336,6 @@
         display: none;
       }
 
-      /* Adjust body padding when article view is shown to prevent content jump */
-      /* This rule might not be needed anymore if padding is handled by JS on main-content */
-      /* Let's keep it commented out for now */
-      /*
-      body.article-view-active {
-        padding-top: 60px;
-      }
-      */
-
       /* Add cursor pointer to all interactive elements */
       .header-icon,
       .aA-icon,
@@ -387,6 +378,10 @@
           <i
             id="favorite-article-icon"
             class="header-icon star-icon bi bi-star"
+          ></i>
+          <i
+            id="read-article-icon"
+            class="header-icon bookmark-icon bi bi-bookmark-check"
           ></i>
           <i
             id="delete-article-icon"

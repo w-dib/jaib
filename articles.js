@@ -1,5 +1,3 @@
-// import { createElement, ArrowLeft, Highlighter, Trash2, Share, ExternalLink, Type } from 'lucide'; // Removed Lucide import
-
 // Add these variable declarations at the top of the file
 let supabaseUrl = null;
 let supabaseAnonKey = null;
@@ -11,6 +9,7 @@ let articleViewMainContent = null; // Add this to make it globally accessible
 let deleteArticleIcon = null; // Add this to make it globally accessible
 let favoriteArticleIcon = null; // Add this to make it globally accessible
 let shareArticleIcon = null; // Add this to make it globally accessible
+let readArticleIcon = null; // Add this to make it globally accessible
 
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("articles.js loaded");
@@ -22,6 +21,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   deleteArticleIcon = document.getElementById("delete-article-icon");
   favoriteArticleIcon = document.getElementById("favorite-article-icon");
   shareArticleIcon = document.getElementById("share-article-icon");
+  readArticleIcon = document.getElementById("read-article-icon");
 
   // Add back button to header-left if it doesn't exist
   const headerLeft = articleView?.querySelector(".header-left");
@@ -395,6 +395,69 @@ function showArticle(articleId) {
     }
   }
 
+  // Update read icon state
+  const readArticleIcon = document.getElementById("read-article-icon");
+  if (readArticleIcon) {
+    console.log("Debug - Setting up read icon for article:", {
+      id: article.id,
+      is_read: article.is_read,
+    });
+
+    // Remove all existing click handlers
+    const newReadIcon = readArticleIcon.cloneNode(true);
+    readArticleIcon.parentNode.replaceChild(newReadIcon, readArticleIcon);
+
+    // Add new click handler
+    newReadIcon.onclick = async () => {
+      console.log("Debug - Read icon clicked");
+      if (currentArticleId) {
+        const article = allArticles.find((a) => a.id === currentArticleId);
+        if (!article) return;
+
+        console.log("Debug - Read click - Article state:", {
+          id: article.id,
+          currentRead: article.is_read,
+          allFields: article,
+        });
+
+        // Get the new status before any updates
+        const newReadStatus = !article.is_read;
+
+        // Optimistically update UI first
+        newReadIcon.classList.toggle("bi-bookmark-check");
+        newReadIcon.classList.toggle("bi-bookmark-check-fill");
+
+        // Update local state
+        article.is_read = newReadStatus;
+
+        // Then update database in background
+        const success = await toggleReadStatus(currentArticleId);
+        if (!success) {
+          // If the update failed, revert the UI changes
+          newReadIcon.classList.toggle("bi-bookmark-check");
+          newReadIcon.classList.toggle("bi-bookmark-check-fill");
+          article.is_read = !newReadStatus;
+          alert("Failed to update read status. Please try again.");
+        } else {
+          // Show notification and redirect to grid
+          showNotification("Article marked as read");
+          setTimeout(() => {
+            backToGrid();
+          }, 1000);
+        }
+      }
+    };
+
+    // Set initial state
+    if (article.is_read) {
+      newReadIcon.classList.remove("bi-bookmark-check");
+      newReadIcon.classList.add("bi-bookmark-check-fill");
+    } else {
+      newReadIcon.classList.add("bi-bookmark-check");
+      newReadIcon.classList.remove("bi-bookmark-check-fill");
+    }
+  }
+
   // Set the article content
   if (articleViewMainContent) {
     articleViewMainContent.innerHTML =
@@ -471,6 +534,84 @@ async function toggleFavoriteStatus(articleId) {
     console.error("Favorite toggle fetch error:", error);
     return false; // Indicate failure
   }
+}
+
+// Function to toggle the read status of an article
+async function toggleReadStatus(articleId) {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("Supabase keys not available for read status.");
+    return false;
+  }
+
+  const article = allArticles.find((a) => a.id === articleId);
+  if (!article) {
+    console.error("Article not found for read status:", articleId);
+    return false;
+  }
+
+  console.log("Debug - Current article state:", {
+    id: articleId,
+    currentRead: article.is_read,
+  });
+
+  try {
+    const url = `${supabaseUrl}/rest/v1/articles?id=eq.${articleId}`;
+    const body = JSON.stringify({ is_read: article.is_read });
+    console.log("Debug - Sending request to:", url);
+    console.log("Debug - Request body:", body);
+
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: body,
+    });
+
+    console.log("Debug - Response status:", res.status);
+    console.log(
+      "Debug - Response headers:",
+      Object.fromEntries(res.headers.entries())
+    );
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error("Supabase read status toggle failed:", errorText);
+      return false;
+    }
+
+    const updatedArticle = await res.json();
+    console.log("Debug - Response data:", updatedArticle);
+
+    return true;
+  } catch (error) {
+    console.error("Read status toggle fetch error:", error);
+    return false;
+  }
+}
+
+// Function to show notification
+function showNotification(message) {
+  const notification = document.createElement("div");
+  notification.className = "notification";
+  notification.textContent = message;
+  document.body.appendChild(notification);
+
+  // Trigger animation
+  setTimeout(() => {
+    notification.classList.add("show");
+  }, 100);
+
+  // Remove after animation
+  setTimeout(() => {
+    notification.classList.remove("show");
+    setTimeout(() => {
+      notification.remove();
+    }, 300);
+  }, 2000);
 }
 
 // Add event listeners to the header icons - Call this only once on DOMContentLoaded
@@ -620,6 +761,7 @@ document.addEventListener("DOMContentLoaded", () => {
   deleteArticleIcon = document.getElementById("delete-article-icon");
   favoriteArticleIcon = document.getElementById("favorite-article-icon");
   shareArticleIcon = document.getElementById("share-article-icon");
+  readArticleIcon = document.getElementById("read-article-icon");
 
   initializeApp().catch((error) => {
     console.error("Error in initialization:", error);
@@ -671,3 +813,28 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
+// Add CSS for notification
+const style = document.createElement("style");
+style.textContent = `
+  .notification {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background-color: #ff9800;
+    color: white;
+    padding: 15px 25px;
+    border-radius: 4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+  }
+
+  .notification.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+`;
+document.head.appendChild(style);
