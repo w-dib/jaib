@@ -253,6 +253,12 @@ function showArticle(articleId) {
     return;
   }
 
+  console.log("Debug - Article before showing:", {
+    id: article.id,
+    is_favorite: article.is_favorite,
+    title: article.title,
+  });
+
   currentArticleId = article.id; // Store ID of the currently viewed article
 
   // Populate header elements
@@ -328,14 +334,64 @@ function showArticle(articleId) {
   // Update favorite icon state
   const favoriteArticleIcon = document.getElementById("favorite-article-icon");
   if (favoriteArticleIcon) {
+    console.log("Debug - Setting up favorite icon for article:", {
+      id: article.id,
+      is_favorite: article.is_favorite,
+    });
+
+    // Remove all existing click handlers
+    const newFavoriteIcon = favoriteArticleIcon.cloneNode(true);
+    favoriteArticleIcon.parentNode.replaceChild(
+      newFavoriteIcon,
+      favoriteArticleIcon
+    );
+
+    // Add new click handler
+    newFavoriteIcon.onclick = async () => {
+      console.log("Debug - Favorite icon clicked");
+      if (currentArticleId) {
+        const article = allArticles.find((a) => a.id === currentArticleId);
+        if (!article) return;
+
+        console.log("Debug - Favorite click - Article state:", {
+          id: article.id,
+          currentFavorite: article.is_favorite,
+          allFields: article,
+        });
+
+        // Get the new status before any updates
+        const newFavoriteStatus = !article.is_favorite;
+
+        // Optimistically update UI first
+        newFavoriteIcon.classList.toggle("active");
+        newFavoriteIcon.classList.toggle("bi-star");
+        newFavoriteIcon.classList.toggle("bi-star-fill");
+
+        // Update local state
+        article.is_favorite = newFavoriteStatus;
+
+        // Then update database in background
+        const success = await toggleFavoriteStatus(currentArticleId);
+        if (!success) {
+          // If the update failed, revert the UI changes
+          newFavoriteIcon.classList.toggle("active");
+          newFavoriteIcon.classList.toggle("bi-star");
+          newFavoriteIcon.classList.toggle("bi-star-fill");
+          article.is_favorite = !newFavoriteStatus;
+          alert("Failed to update favorite status. Please try again.");
+        }
+      }
+    };
+
+    // Set initial state
     if (article.is_favorite) {
-      favoriteArticleIcon.classList.add("active");
-      favoriteArticleIcon.classList.remove("bi-star");
-      favoriteArticleIcon.classList.add("bi-star-fill");
+      newFavoriteIcon.classList.add("active");
+      newFavoriteIcon.classList.remove("bi-star");
+      newFavoriteIcon.classList.add("bi-star-fill");
     } else {
-      favoriteArticleIcon.classList.remove("active");
-      favoriteArticleIcon.classList.remove("bi-star-fill");
-      favoriteArticleIcon.classList.add("bi-star");
+      newFavoriteIcon.classList.remove("active");
+      newFavoriteIcon.classList.add("bi-star");
+      newFavoriteIcon.classList.remove("bi-star-fill");
     }
   }
 
@@ -371,22 +427,34 @@ async function toggleFavoriteStatus(articleId) {
     return false;
   }
 
-  const newFavoriteStatus = !article.is_favorite;
+  // Use the current state directly since we're already passing the new state
+  console.log("Debug - Current article state:", {
+    id: articleId,
+    currentFavorite: article.is_favorite,
+  });
 
   try {
     // Supabase PATCH to update is_favorite status
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/articles?id=eq.${articleId}`,
-      {
-        method: "PATCH",
-        headers: {
-          apikey: supabaseAnonKey,
-          Authorization: `Bearer ${supabaseAnonKey}`,
-          "Content-Type": "application/json",
-          Prefer: "return=representation", // Return the updated object
-        },
-        body: JSON.stringify({ is_favorite: newFavoriteStatus }),
-      }
+    const url = `${supabaseUrl}/rest/v1/articles?id=eq.${articleId}`;
+    const body = JSON.stringify({ is_favorite: article.is_favorite });
+    console.log("Debug - Sending request to:", url);
+    console.log("Debug - Request body:", body);
+
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation", // Return the updated object
+      },
+      body: body,
+    });
+
+    console.log("Debug - Response status:", res.status);
+    console.log(
+      "Debug - Response headers:",
+      Object.fromEntries(res.headers.entries())
     );
 
     if (!res.ok) {
@@ -396,13 +464,7 @@ async function toggleFavoriteStatus(articleId) {
     }
 
     const updatedArticle = await res.json();
-    console.log(
-      "Article favorite status updated successfully:",
-      updatedArticle
-    );
-
-    // Update the local article object
-    article.is_favorite = newFavoriteStatus;
+    console.log("Debug - Response data:", updatedArticle);
 
     return true; // Indicate success
   } catch (error) {
@@ -413,8 +475,11 @@ async function toggleFavoriteStatus(articleId) {
 
 // Add event listeners to the header icons - Call this only once on DOMContentLoaded
 function addHeaderIconListeners() {
+  console.log("Debug - Setting up header icon listeners");
+
   // Delete icon listener
   if (deleteArticleIcon) {
+    console.log("Debug - Delete icon found");
     deleteArticleIcon.onclick = async () => {
       if (
         currentArticleId &&
@@ -434,15 +499,39 @@ function addHeaderIconListeners() {
 
   // Favorite icon listener
   if (favoriteArticleIcon) {
+    console.log("Debug - Favorite icon found");
     favoriteArticleIcon.onclick = async () => {
+      console.log("Debug - Favorite icon clicked");
       if (currentArticleId) {
+        const article = allArticles.find((a) => a.id === currentArticleId);
+        if (!article) return;
+
+        console.log("Debug - Favorite click - Article state:", {
+          id: article.id,
+          currentFavorite: article.is_favorite,
+          allFields: article,
+        });
+
+        // Get the new status before any updates
+        const newFavoriteStatus = !article.is_favorite;
+
+        // Optimistically update UI first
+        favoriteArticleIcon.classList.toggle("active");
+        favoriteArticleIcon.classList.toggle("bi-star");
+        favoriteArticleIcon.classList.toggle("bi-star-fill");
+
+        // Update local state
+        article.is_favorite = newFavoriteStatus;
+
+        // Then update database in background
         const success = await toggleFavoriteStatus(currentArticleId);
-        if (success) {
+        if (!success) {
+          // If the update failed, revert the UI changes
           favoriteArticleIcon.classList.toggle("active");
           favoriteArticleIcon.classList.toggle("bi-star");
           favoriteArticleIcon.classList.toggle("bi-star-fill");
-        } else {
-          alert("Failed to toggle favorite status.");
+          article.is_favorite = !newFavoriteStatus;
+          alert("Failed to update favorite status. Please try again.");
         }
       }
     };
