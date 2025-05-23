@@ -31,8 +31,9 @@
         ); /* Fixed width */
         gap: 20px; /* Space between grid items */
         justify-content: center; /* Center grid if items don't fill width */
-        padding: 0 20px; /* Add horizontal padding */
-        padding-top: 20px;
+        padding: 80px 20px 20px 20px; /* Add top, right, bottom, left padding */
+        max-width: 800px; /* Match article view content width */
+        margin: 0 auto; /* Center the grid */
       }
 
       .article-item {
@@ -359,9 +360,110 @@
       /* No specific rule needed here, as the header is taken out of flow
          and padding on content pushes it down. Just ensure no negative margins
          or absolute positioning on metadata itself. */
+
+      /* Add new sticky header for the grid view */
+      .grid-sticky-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        /* width is handled by max-width and margin below */
+        background-color: #ffffff; /* White background */
+        padding: 10px 20px; /* Adjust padding */
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 999; /* Lower z-index than article view header */
+        height: 60px; /* Fixed height, matching article view header */
+        box-sizing: border-box;
+        max-width: 800px; /* Match article view content width */
+        margin: 0 auto; /* Center the header */
+      }
+
+      .grid-sticky-header .header-left,
+      .grid-sticky-header .header-right {
+        display: flex;
+        align-items: center;
+        flex-shrink: 0;
+        gap: 10px;
+      }
+
+      .grid-sticky-header .header-center {
+        display: flex;
+        align-items: center;
+        gap: 30px; /* Space between navigation links, adjusted for larger text */
+        flex-grow: 1;
+        justify-content: center;
+      }
+
+      .jaib-logo {
+        height: 30px; /* Adjust logo size */
+        width: auto;
+      }
+
+      .jaib-title {
+        font-size: 1.3em;
+        font-weight: bold;
+        color: #333;
+      }
+
+      .header-link {
+        font-size: 1.65em; /* Increased font size by 1.5x (1.1 * 1.5 = 1.65) */
+        font-weight: bold; /* Make text bold */
+        color: #333; /* Darker color */
+        text-decoration: none;
+        cursor: pointer;
+        transition: color 0.2s ease-in-out;
+        position: relative; /* Needed for absolute positioning of the underline */
+        padding-bottom: 5px; /* Add space for the underline */
+      }
+
+      .header-link:hover {
+        color: #000;
+      }
+
+      .header-link.active::after {
+        content: "";
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80%; /* Width of the underline */
+        height: 3px; /* Thickness of the underline */
+        background-color: #ff9800; /* Orange color */
+        transition: width 0.2s ease-in-out; /* Animation for width change */
+      }
+
+      .grid-sticky-header .header-icon {
+        font-size: 1.6em; /* Slightly increased icon size for consistency */
+        color: #555;
+        transition: color 0.2s ease-in-out;
+        cursor: pointer;
+      }
+
+      .grid-sticky-header .header-icon:hover {
+        color: #000;
+      }
     </style>
   </head>
   <body>
+    <div class="grid-sticky-header">
+      <div class="header-left">
+        <img src="icons/icon48.png" alt="Jaib Logo" class="jaib-logo" />
+        <span class="jaib-title">Jaib</span>
+      </div>
+      <div class="header-center">
+        <span class="header-link active">Saves</span>
+        <span class="header-link">Favorites</span>
+        <span class="header-link">Archives</span>
+      </div>
+      <div class="header-right">
+        <i class="header-icon bi bi-plus-circle" id="add-url-icon"></i>
+        <i class="header-icon bi bi-search" id="search-icon"></i>
+      </div>
+    </div>
+
     <div id="articles-grid">
       <!-- Article items will be loaded here by articles.js -->
       Loading articles...
