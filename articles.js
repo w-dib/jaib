@@ -10,6 +10,9 @@ let deleteArticleIcon = null; // Add this to make it globally accessible
 let favoriteArticleIcon = null; // Add this to make it globally accessible
 let shareArticleIcon = null; // Add this to make it globally accessible
 let readArticleIcon = null; // Add this to make it globally accessible
+let savesLink = null; // Add this for Saves link
+let favoritesLink = null; // Add this for Favorites link
+let archivesLink = null; // Add this for Archives link
 
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("articles.js loaded");
@@ -22,6 +25,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   favoriteArticleIcon = document.getElementById("favorite-article-icon");
   shareArticleIcon = document.getElementById("share-article-icon");
   readArticleIcon = document.getElementById("read-article-icon");
+  // Get references to the new header links
+  savesLink = document.querySelector(
+    ".grid-sticky-header .header-center span:nth-child(1)"
+  );
+  favoritesLink = document.querySelector(
+    ".grid-sticky-header .header-center span:nth-child(2)"
+  );
+  archivesLink = document.querySelector(
+    ".grid-sticky-header .header-center span:nth-child(3)"
+  );
 
   // Add back button to header-left if it doesn't exist
   const headerLeft = articleView?.querySelector(".header-left");
@@ -45,12 +58,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // Fetch and render articles
+  // Fetch articles and initialize display
   try {
     const articles = await fetchArticles();
-    allArticles = articles;
+    allArticles = articles; // Store all fetched articles
     if (articlesGrid) {
-      renderArticleList(articles);
+      filterAndRenderArticles("saves"); // Show saves by default
     }
   } catch (error) {
     console.error("Error initializing articles:", error);
@@ -96,6 +109,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Add header icon listeners only once
   addHeaderIconListeners();
+
+  // Add event listeners for the new grid header navigation links
+  if (savesLink)
+    savesLink.addEventListener("click", () => filterAndRenderArticles("saves"));
+  if (favoritesLink)
+    favoritesLink.addEventListener("click", () =>
+      filterAndRenderArticles("favorites")
+    );
+  if (archivesLink)
+    archivesLink.addEventListener("click", () =>
+      filterAndRenderArticles("archives")
+    );
 });
 
 // Function to fetch keys from storage
@@ -735,7 +760,7 @@ async function initializeApp() {
     if (supabaseUrl && supabaseAnonKey) {
       allArticles = await fetchArticles(); // Fetch articles on load
       if (articlesGrid) {
-        renderArticleList(allArticles); // Render the initial list
+        filterAndRenderArticles("saves"); // Show saves by default
       }
     } else {
       if (articlesGrid) {
@@ -762,6 +787,16 @@ document.addEventListener("DOMContentLoaded", () => {
   favoriteArticleIcon = document.getElementById("favorite-article-icon");
   shareArticleIcon = document.getElementById("share-article-icon");
   readArticleIcon = document.getElementById("read-article-icon");
+  // Get references to the new header links
+  savesLink = document.querySelector(
+    ".grid-sticky-header .header-center span:nth-child(1)"
+  );
+  favoritesLink = document.querySelector(
+    ".grid-sticky-header .header-center span:nth-child(2)"
+  );
+  archivesLink = document.querySelector(
+    ".grid-sticky-header .header-center span:nth-child(3)"
+  );
 
   initializeApp().catch((error) => {
     console.error("Error in initialization:", error);
@@ -812,6 +847,18 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
+
+  // Add event listeners for the new grid header navigation links
+  if (savesLink)
+    savesLink.addEventListener("click", () => filterAndRenderArticles("saves"));
+  if (favoritesLink)
+    favoritesLink.addEventListener("click", () =>
+      filterAndRenderArticles("favorites")
+    );
+  if (archivesLink)
+    archivesLink.addEventListener("click", () =>
+      filterAndRenderArticles("archives")
+    );
 });
 
 // Add CSS for notification
@@ -838,3 +885,45 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// Function to filter and render articles based on tab
+function filterAndRenderArticles(tabType) {
+  console.log(`Filtering for tab: ${tabType}`);
+
+  // Remove active class from all links
+  if (savesLink) savesLink.classList.remove("active");
+  if (favoritesLink) favoritesLink.classList.remove("active");
+  if (archivesLink) archivesLink.classList.remove("active");
+
+  let filteredArticles = [];
+
+  // Filter logic
+  switch (tabType) {
+    case "saves":
+      // Saves are not archived/read
+      if (savesLink) savesLink.classList.add("active");
+      filteredArticles = allArticles.filter((article) => !article.is_read);
+      break;
+    case "favorites":
+      // Favorites are simply favorited (read status doesn't matter)
+      if (favoritesLink) favoritesLink.classList.add("active");
+      filteredArticles = allArticles.filter((article) => article.is_favorite);
+      break;
+    case "archives":
+      // Archives are marked as read
+      if (archivesLink) archivesLink.classList.add("active");
+      filteredArticles = allArticles.filter((article) => article.is_read);
+      break;
+    default:
+      // Default to saves if something unexpected happens
+      if (savesLink) savesLink.classList.add("active");
+      filteredArticles = allArticles.filter((article) => !article.is_read);
+      console.warn(`Unknown tab type: ${tabType}. Defaulting to saves.`);
+      break;
+  }
+
+  console.log(
+    `Displaying ${filteredArticles.length} articles for tab ${tabType}`
+  );
+  renderArticleList(filteredArticles);
+}
