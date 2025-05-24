@@ -306,32 +306,25 @@ function ArticleView() {
       {/* Article content container - wraps title, byline, and main content */}
       {/* Apply max-width and center horizontally */}
       {/* Added ref here for scroll height measurement */}
-      <div ref={contentRef} className="max-w-[718px] mx-auto w-full">
+      <div
+        ref={contentRef}
+        className="max-w-[718px] mx-auto w-full pt-12 sm:pt-16 pb-16 sm:pb-24"
+      >
         {/* Article Title and Byline - Restored and centered */}
         {/* Added px-40 to align with the inner content padding */}
-        <div className="text-center mb-8 px-[40px]">
-          <h1 className="text-[35px] font-bold mb-2">{article.title}</h1>
+        <div className="text-center mb-10 md:mb-12 px-[40px]">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-3 tracking-tight leading-tight">
+            {article.title}
+          </h1>
           {article.byline && (
-            <p className="text-gray-600 text-[25px]">{article.byline}</p>
+            <p className="text-md text-gray-500">{article.byline}</p>
           )}
         </div>
 
         {/* Main Article content */}
-        {/* Apply 40px padding and updated prose classes for typography */}
+        {/* Apply Medium-style typography with improved prose classes */}
         <div
-          className="prose max-w-none text-left p-[40px]"
-          style={{
-            "--tw-prose-body": "25px", // Base text size
-            "--tw-prose-headings": "35px", // h1, h2, h3, etc. size
-            "line-height": "1.5", // Line height
-            "--tw-prose-lead": "25px",
-            "--tw-prose-blockquote": "25px",
-            "--tw-prose-figure-captions": "25px",
-            "--tw-prose-code": "25px",
-            "--tw-prose-li": "25px",
-            "--tw-prose-td-th": "25px",
-            "font-size": "25px", // Apply base text size to the prose container as fallback
-          }}
+          className="max-w-none text-left px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:text-green-600 prose-a:no-underline hover:prose-a:underline prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-green-200 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
       </div>
