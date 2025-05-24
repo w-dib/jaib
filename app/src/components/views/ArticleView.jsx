@@ -12,6 +12,19 @@ import {
   Trash2, // For Delete
 } from "lucide-react";
 
+// Import ShadCN Dialog components with corrected path
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogClose,
+} from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/button"; // Corrected path
+
 function ArticleView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -21,6 +34,11 @@ function ArticleView() {
   const [error, setError] = useState(null);
   const contentRef = useRef(null); // Ref for the article content div
   const [readingProgress, setReadingProgress] = useState(0); // State for reading progress
+
+  // Local state for favorite and read status, initialized from fetched article
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [isRead, setIsRead] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     const fetchArticle = async () => {
@@ -41,22 +59,24 @@ function ArticleView() {
       if (error) {
         console.error("Error fetching article:", error);
         setError(error.message);
+        setArticle(null); // Ensure article is null on error
       } else {
         setArticle(data);
+        // Initialize local state from fetched article data
+        setIsFavorited(data?.is_favorite || false);
+        setIsRead(data?.is_read || false);
       }
       setLoading(false);
     };
 
     fetchArticle();
-  }, [id, user]);
+  }, [id, user]); // Dependency on id and user
 
   // Effect for calculating reading progress
   useEffect(() => {
     const handleWindowScroll = () => {
       if (!contentRef.current) return;
 
-      // A simpler approach: measure scroll relative to the bottom of the content
-      // total scrollable distance is body height - viewport height
       const totalHeight = document.body.scrollHeight - window.innerHeight;
       const scrollTop = window.scrollY;
       const scrolled = totalHeight > 0 ? scrollTop / totalHeight : 1;
@@ -65,10 +85,8 @@ function ArticleView() {
       setReadingProgress(progress);
     };
 
-    // Attach to window scroll as the main page container handles scrolling
     window.addEventListener("scroll", handleWindowScroll);
 
-    // Clean up the event listener
     return () => {
       window.removeEventListener("scroll", handleWindowScroll);
     };
@@ -77,21 +95,80 @@ function ArticleView() {
   // Recalculate progress when article loads
   useEffect(() => {
     const handleInitialProgress = () => {
-      // Trigger a scroll calculation after content is likely rendered
-      // A small timeout might be necessary to ensure content height is calculated
       setTimeout(() => {
-        if (!contentRef.current) return; // Ensure ref is available after timeout
+        if (!contentRef.current) return;
         const totalHeight = document.body.scrollHeight - window.innerHeight;
         const scrollTop = window.scrollY;
         const scrolled = totalHeight > 0 ? scrollTop / totalHeight : 1;
         const progress = scrolled * 100;
         setReadingProgress(progress);
-      }, 100); // Small timeout to wait for rendering
+      }, 100);
     };
     if (article) {
       handleInitialProgress();
     }
   }, [article]);
+
+  // Handle favoriting/unfavoriting
+  const handleFavoriteToggle = async () => {
+    if (!user || !article) return;
+    const newState = !isFavorited;
+    setIsFavorited(newState); // Optimistically update UI
+
+    const { error } = await supabase
+      .from("articles")
+      .update({ is_favorite: newState })
+      .eq("id", article.id);
+
+    if (error) {
+      console.error("Error updating favorite status:", error);
+      setIsFavorited(!newState); // Revert UI on error
+      // Optionally show an error message to the user
+    } else {
+      console.log("Favorite status updated successfully");
+    }
+  };
+
+  // Handle archiving/unarchiving (marking as read/unread)
+  const handleArchiveToggle = async () => {
+    if (!user || !article) return;
+    const newState = !isRead;
+    setIsRead(newState); // Optimistically update UI
+
+    const { error } = await supabase
+      .from("articles")
+      .update({ is_read: newState })
+      .eq("id", article.id);
+
+    if (error) {
+      console.error("Error updating read status:", error);
+      setIsRead(!newState); // Revert UI on error
+      // Optionally show an error message
+    } else {
+      console.log("Read status updated successfully");
+      // Decide if we should navigate back after archiving/unarchiving
+      // navigate('/'); // Example: navigate back to Saves after archiving
+    }
+  };
+
+  // Handle article deletion
+  const handleDeleteArticle = async () => {
+    if (!user || !article) return;
+
+    const { error } = await supabase
+      .from("articles")
+      .delete()
+      .eq("id", article.id);
+
+    if (error) {
+      console.error("Error deleting article:", error);
+      // Optionally show an error message
+    } else {
+      console.log("Article deleted successfully");
+      setIsDeleteDialogOpen(false); // Close dialog
+      navigate("/"); // Navigate back to Saves view after deletion
+    }
+  };
 
   if (loading) {
     return (
@@ -150,10 +227,11 @@ function ArticleView() {
         <div className="flex items-center space-x-4">
           {/* Favorite/Unfavorite Icon - Star */}
           <button
+            onClick={handleFavoriteToggle} // Added onClick handler
             className="p-2 rounded-full hover:bg-gray-100 transition-colors"
             aria-label="Favorite/Unfavorite Article"
           >
-            {article.is_favorite ? (
+            {isFavorited ? ( // Use local state
               <Star
                 size={iconSize}
                 className="text-yellow-500 fill-yellow-500"
@@ -173,29 +251,57 @@ function ArticleView() {
           </button>
           {/* Archive/Unarchive Icon - Book */}
           <button
+            onClick={handleArchiveToggle} // Added onClick handler
             className="p-2 rounded-full hover:bg-gray-100 transition-colors"
             aria-label="Archive/Unarchive Article"
           >
             {/* Increased icon size */}
-            {article.is_read ? (
+            {isRead ? ( // Use local state
               <BookUp size={iconSize} className="text-orange-500" /> // BookUp if read (archived)
             ) : (
               <BookDown size={iconSize} className="text-gray-600" /> // BookDown if not read (in saves)
             )}
           </button>
           {/* Delete Icon - Trash */}
-          <button
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-            aria-label="Delete Article"
+          {/* Wrap delete button in DialogTrigger */}
+          <Dialog
+            open={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
           >
-            {/* Increased icon size */}
-            <Trash2 size={iconSize} className="text-gray-600" />{" "}
-            {/* Using Trash2 icon */}
-          </button>
+            <DialogTrigger asChild>
+              <button
+                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                aria-label="Delete Article"
+              >
+                {/* Increased icon size */}
+                <Trash2 size={iconSize} className="text-gray-600" />
+              </button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirm Deletion</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete this article? This action
+                  cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                {/* Add delete button inside dialog */}
+                <Button variant="destructive" onClick={handleDeleteArticle}>
+                  Delete
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           {/* Share and Display Settings icons removed as requested */}
         </div>
         {/* Right section: Placeholder to balance the back button */}
         {/* Adjusted width slightly as two icons were removed */}
+        <div className="w-10 flex-shrink-0"></div> {/* Placeholder div */}
       </div>
       {/* Article content container - wraps title, byline, and main content */}
       {/* Apply max-width and center horizontally */}
