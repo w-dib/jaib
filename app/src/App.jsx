@@ -8,10 +8,13 @@ import Navbar from "./components/Navbar";
 import ArticleGrid from "./components/ArticleGrid";
 
 function App() {
+  const { user, signOut } = useAuth();
+
   return (
     <Router>
       <AuthProvider>
-        <div className="min-h-screen bg-gray-50">
+        <div className="flex flex-col min-h-screen bg-gray-50">
+          <Navbar user={user} onSignOut={signOut} />
           <Routes>
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/" element={<Home />} />
@@ -23,7 +26,7 @@ function App() {
 }
 
 function Home() {
-  const { user, signInWithMagicLink, signOut, loading } = useAuth();
+  const { signInWithMagicLink, loading, user } = useAuth();
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
 
@@ -47,7 +50,7 @@ function Home() {
 
       const { data, error } = await supabase
         .from("articles")
-        .select("id, title, url, byline, saved_at");
+        .select("id, title, url, byline, saved_at, content, excerpt");
 
       if (error) {
         console.error("Error fetching articles:", error);
@@ -111,33 +114,22 @@ function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <div className="p-4">
-        <p>Welcome, {user.email}</p>
-        <button
-          onClick={signOut}
-          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 mr-2"
-        >
-          Sign Out
-        </button>
+    <div className="flex-grow p-4">
+      <h2 className="text-xl mt-4 mb-2">Your Saved Articles</h2>
 
-        <h2 className="text-xl mt-4 mb-2">Your Saved Articles</h2>
+      {fetchingArticles && <p>Loading articles...</p>}
 
-        {fetchingArticles && <p>Loading articles...</p>}
+      {fetchError && (
+        <p className="text-red-500">Error loading articles: {fetchError}</p>
+      )}
 
-        {fetchError && (
-          <p className="text-red-500">Error loading articles: {fetchError}</p>
-        )}
+      {!fetchingArticles && !fetchError && articles.length === 0 && (
+        <p>No articles saved yet.</p>
+      )}
 
-        {!fetchingArticles && !fetchError && articles.length === 0 && (
-          <p>No articles saved yet.</p>
-        )}
-
-        {!fetchingArticles && !fetchError && articles.length > 0 && (
-          <ArticleGrid articles={articles} />
-        )}
-      </div>
+      {!fetchingArticles && !fetchError && articles.length > 0 && (
+        <ArticleGrid articles={articles} />
+      )}
     </div>
   );
 }
