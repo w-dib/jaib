@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
 import ArticleGrid from "../ArticleGrid";
+import ArticleGridSkeleton from "../ArticleGridSkeleton";
 
 function FavoritesView() {
   const { user } = useAuth();
@@ -40,7 +41,7 @@ function FavoritesView() {
   }, [user]);
 
   if (fetchingArticles) {
-    return <p>Loading articles...</p>;
+    return <ArticleGridSkeleton />;
   }
 
   if (fetchError) {
