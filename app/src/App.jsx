@@ -4,6 +4,8 @@ import AuthCallback from "./pages/AuthCallback";
 import { useState, useEffect } from "react";
 import "./App.css";
 import { supabase } from "./lib/supabase";
+import Navbar from "./components/Navbar";
+import ArticleGrid from "./components/ArticleGrid";
 
 function App() {
   return (
@@ -109,49 +111,33 @@ function Home() {
   }
 
   return (
-    <div className="p-4">
-      <p>Welcome, {user.email}</p>
-      <button
-        onClick={signOut}
-        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 mr-2"
-      >
-        Sign Out
-      </button>
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      <div className="p-4">
+        <p>Welcome, {user.email}</p>
+        <button
+          onClick={signOut}
+          className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 mr-2"
+        >
+          Sign Out
+        </button>
 
-      <h2 className="text-xl mt-4 mb-2">Your Saved Articles</h2>
+        <h2 className="text-xl mt-4 mb-2">Your Saved Articles</h2>
 
-      {fetchingArticles && <p>Loading articles...</p>}
+        {fetchingArticles && <p>Loading articles...</p>}
 
-      {fetchError && (
-        <p className="text-red-500">Error loading articles: {fetchError}</p>
-      )}
+        {fetchError && (
+          <p className="text-red-500">Error loading articles: {fetchError}</p>
+        )}
 
-      {!fetchingArticles && !fetchError && articles.length === 0 && (
-        <p>No articles saved yet.</p>
-      )}
+        {!fetchingArticles && !fetchError && articles.length === 0 && (
+          <p>No articles saved yet.</p>
+        )}
 
-      {!fetchingArticles && !fetchError && articles.length > 0 && (
-        <ul>
-          {articles.map((article) => (
-            <li key={article.id} className="mb-2 p-2 border rounded">
-              <a
-                href={article.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                {article.title}
-              </a>
-              {article.byline && (
-                <p className="text-sm text-gray-600">By: {article.byline}</p>
-              )}
-              <p className="text-sm text-gray-600">
-                Saved on: {new Date(article.saved_at).toLocaleDateString()}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
+        {!fetchingArticles && !fetchError && articles.length > 0 && (
+          <ArticleGrid articles={articles} />
+        )}
+      </div>
     </div>
   );
 }
