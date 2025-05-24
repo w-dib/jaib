@@ -1,4 +1,9 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useLocation,
+} from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import AuthCallback from "./pages/AuthCallback";
 import { useState, useEffect } from "react";
@@ -6,23 +11,67 @@ import "./App.css";
 import { supabase } from "./lib/supabase";
 import Navbar from "./components/Navbar";
 import ArticleGrid from "./components/ArticleGrid";
+import SavesView from "./components/views/SavesView";
+import FavoritesView from "./components/views/FavoritesView";
+import ArchivesView from "./components/views/ArchivesView";
+import ArticleView from "./components/views/ArticleView";
 
 function App() {
-  const { user, signOut } = useAuth();
-
   return (
     <Router>
       <AuthProvider>
-        <div className="flex flex-col min-h-screen bg-gray-50">
-          <Navbar user={user} onSignOut={signOut} />
-          <Routes>
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/" element={<Home />} />
-          </Routes>
-        </div>
+        <AppLayout />
       </AuthProvider>
     </Router>
   );
+}
+
+function AppLayout() {
+  const { user, signOut } = useAuth();
+  const location = useLocation();
+
+  const showNavbarPaths = ["/", "/favorites", "/archives"];
+
+  const showMainNavbar = showNavbarPaths.includes(location.pathname);
+
+  return (
+    <div className="flex flex-col min-h-screen bg-gray-50">
+      {showMainNavbar && <Navbar user={user} onSignOut={signOut} />}
+
+      <Routes>
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route
+          path="/"
+          element={
+            <ViewWrapper>
+              <SavesView />
+            </ViewWrapper>
+          }
+        />
+        <Route
+          path="/favorites"
+          element={
+            <ViewWrapper>
+              <FavoritesView />
+            </ViewWrapper>
+          }
+        />
+        <Route
+          path="/archives"
+          element={
+            <ViewWrapper>
+              <ArchivesView />
+            </ViewWrapper>
+          }
+        />
+        <Route path="/article/:id" element={<ArticleView />} />
+      </Routes>
+    </div>
+  );
+}
+
+function ViewWrapper({ children }) {
+  return <div className="flex-grow p-4">{children}</div>;
 }
 
 function Home() {

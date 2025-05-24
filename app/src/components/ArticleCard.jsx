@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   MoreHorizontal,
   Trash,
@@ -17,6 +18,7 @@ import {
 } from "../../components/ui/dropdown-menu"; // Corrected import path based on user feedback
 
 function ArticleCard({ article }) {
+  const navigate = useNavigate();
   const [imageLoading, setImageLoading] = useState(true);
 
   // Function to extract first image URL from content with better URL handling
@@ -91,8 +93,25 @@ function ArticleCard({ article }) {
     setImageLoading(true);
   }, [imageUrl]);
 
+  const handleCardClick = (e) => {
+    // Prevent navigation if clicking on the dropdown menu
+    if (e.target.closest(".dropdown-menu")) {
+      return;
+    }
+    navigate(`/article/${article.id}`);
+  };
+
+  const handleActionClick = (e, action) => {
+    e.stopPropagation(); // Prevent card click when clicking action buttons
+    // TODO: Implement action handlers
+    console.log(`Action clicked: ${action}`);
+  };
+
   return (
-    <div className="border rounded-lg overflow-hidden shadow-sm flex flex-col h-full">
+    <div
+      className="border rounded-lg overflow-hidden shadow-sm flex flex-col h-full cursor-pointer hover:shadow-md transition-shadow"
+      onClick={handleCardClick}
+    >
       {/* Image */}
       <div className="w-full h-32 bg-gray-100 flex items-center justify-center overflow-hidden relative">
         {imageUrl ? (
@@ -145,24 +164,39 @@ function ArticleCard({ article }) {
           {/* More Options Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="p-1 rounded-full hover:bg-gray-100">
+              <button
+                className="p-1 rounded-full hover:bg-gray-100"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <MoreHorizontal size={20} />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="dropdown-menu">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="flex items-center cursor-pointer">
+              <DropdownMenuItem
+                className="flex items-center cursor-pointer"
+                onClick={(e) => handleActionClick(e, "delete")}
+              >
                 <Trash size={16} className="mr-2" /> Delete
               </DropdownMenuItem>
-              <DropdownMenuItem className="flex items-center cursor-pointer">
+              <DropdownMenuItem
+                className="flex items-center cursor-pointer"
+                onClick={(e) => handleActionClick(e, "share")}
+              >
                 <Share2 size={16} className="mr-2" /> Share
               </DropdownMenuItem>
-              <DropdownMenuItem className="flex items-center cursor-pointer">
+              <DropdownMenuItem
+                className="flex items-center cursor-pointer"
+                onClick={(e) => handleActionClick(e, "archive")}
+              >
                 <Archive size={16} className="mr-2" />{" "}
                 {article.isArchived ? "Unarchive" : "Archive"}
               </DropdownMenuItem>
-              <DropdownMenuItem className="flex items-center cursor-pointer">
+              <DropdownMenuItem
+                className="flex items-center cursor-pointer"
+                onClick={(e) => handleActionClick(e, "favorite")}
+              >
                 <Bookmark size={16} className="mr-2" />{" "}
                 {article.isFavorited ? "Unfavorite" : "Favorite"}
               </DropdownMenuItem>
