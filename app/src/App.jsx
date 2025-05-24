@@ -15,6 +15,7 @@ import SavesView from "./components/views/SavesView";
 import FavoritesView from "./components/views/FavoritesView";
 import ArchivesView from "./components/views/ArchivesView";
 import ArticleView from "./components/views/ArticleView";
+import { LandingPage } from "./components/LandingPage";
 
 function App() {
   return (
@@ -33,6 +34,10 @@ function AppLayout() {
   const showNavbarPaths = ["/", "/favorites", "/archives"];
 
   const showMainNavbar = showNavbarPaths.includes(location.pathname);
+
+  if (!user) {
+    return <LandingPage />;
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50">
