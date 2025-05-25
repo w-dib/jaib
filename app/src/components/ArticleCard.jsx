@@ -4,9 +4,10 @@ import {
   MoreHorizontal,
   Trash,
   Share2,
-  Archive,
-  Bookmark,
   Image,
+  Star,
+  BookDown,
+  BookUp,
 } from "lucide-react"; // Import necessary Lucide icons
 import {
   DropdownMenu,
@@ -16,10 +17,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"; // Corrected import path based on user feedback
+import { supabase } from "../lib/supabase"; // Corrected import path
+import { useAuth } from "../contexts/AuthContext"; // Corrected import path
 
 function ArticleCard({ article }) {
   const navigate = useNavigate();
+  const { user } = useAuth(); // Added
   const [imageLoading, setImageLoading] = useState(true);
+  // We need a way to reflect changes in the UI immediately.
+  // Adding local state for isFavorited and isArchived.
+  // Initialize with prop values, but allow local updates.
+  const [isFavorited, setIsFavorited] = useState(article.is_favorited);
+  const [isArchived, setIsArchived] = useState(article.is_read);
 
   // Function to extract first image URL from content with better URL handling
   const extractFirstImageUrl = (content, baseUrl) => {
@@ -101,10 +110,94 @@ function ArticleCard({ article }) {
     navigate(`/article/${article.id}`);
   };
 
-  const handleActionClick = (e, action) => {
+  const handleActionClick = async (e, action) => {
+    // Made async
     e.stopPropagation(); // Prevent card click when clicking action buttons
-    // TODO: Implement action handlers
-    console.log(`Action clicked: ${action}`);
+    if (!user) {
+      console.error("User not authenticated for action:", action);
+      // Optionally, navigate to login or show a message
+      return;
+    }
+
+    try {
+      switch (action) {
+        case "favorite": {
+          const newFavoriteStatus = !isFavorited;
+          const { error: favoriteError } = await supabase
+            .from("articles")
+            .update({ is_favorited: newFavoriteStatus })
+            .eq("id", article.id)
+            .eq("user_id", user.id);
+          if (favoriteError) throw favoriteError;
+          setIsFavorited(newFavoriteStatus); // Update local state
+          console.log(
+            `Article ${
+              newFavoriteStatus ? "favorited" : "unfavorited"
+            } successfully.`
+          );
+          break;
+        }
+        case "archive": {
+          const newArchiveStatus = !isArchived;
+          const { error: archiveError } = await supabase
+            .from("articles")
+            .update({ is_read: newArchiveStatus }) // 'is_read' for archive
+            .eq("id", article.id)
+            .eq("user_id", user.id);
+          if (archiveError) throw archiveError;
+          setIsArchived(newArchiveStatus); // Update local state
+          console.log(
+            `Article ${
+              newArchiveStatus ? "archived" : "unarchived"
+            } successfully.`
+          );
+          break;
+        }
+        case "delete": {
+          // Add a confirmation dialog here in a real app
+          const { error: deleteError } = await supabase
+            .from("articles")
+            .delete()
+            .eq("id", article.id)
+            .eq("user_id", user.id);
+          if (deleteError) throw deleteError;
+          console.log("Article deleted successfully.");
+          // Optionally, navigate away or refresh the list
+          // For now, we can just log or perhaps make the card disappear
+          // This might require lifting state up or a callback prop
+          // For simplicity, we'll just log and the card remains (will disappear on next fetch)
+          break;
+        }
+        case "share": {
+          // Implement share functionality (e.g., using navigator.share if available)
+          if (navigator.share) {
+            navigator
+              .share({
+                title: article.title,
+                text: `Check out this article: ${article.title}`,
+                url: article.url,
+              })
+              .then(() => console.log("Successful share"))
+              .catch((error) => console.log("Error sharing", error));
+          } else {
+            console.log(
+              "Share not supported on this browser, copy URL to clipboard or implement custom share UI."
+            );
+            // Fallback: copy to clipboard
+            navigator.clipboard
+              .writeText(article.url)
+              .then(() => console.log("URL copied to clipboard!"))
+              .catch((err) => console.error("Failed to copy URL: ", err));
+          }
+          break;
+        }
+        default:
+          console.log(`Action clicked: ${action}`);
+      }
+    } catch (error) {
+      console.error(`Error performing action ${action}:`, error.message);
+      // Optionally, show an error message to the user
+    }
   };
 
   return (
@@ -174,31 +267,49 @@ function ArticleCard({ article }) {
             <DropdownMenuContent align="end" className="dropdown-menu">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {/* Favorite Action */}
+              <DropdownMenuItem
+                className="flex items-center cursor-pointer"
+                onClick={(e) => handleActionClick(e, "favorite")}
+              >
+                {isFavorited ? (
+                  <Star
+                    size={16}
+                    className="mr-2 text-yellow-500 fill-yellow-500"
+                  />
+                ) : (
+                  <Star size={16} className="mr-2" />
+                )}
+                {isFavorited ? "Unfavorite" : "Favorite"}
+              </DropdownMenuItem>
+
+              {/* Archive Action */}
+              <DropdownMenuItem
+                className="flex items-center cursor-pointer"
+                onClick={(e) => handleActionClick(e, "archive")}
+              >
+                {isArchived ? (
+                  <BookUp size={16} className="mr-2 text-orange-500" />
+                ) : (
+                  <BookDown size={16} className="mr-2" />
+                )}
+                {isArchived ? "Unarchive" : "Archive"}
+              </DropdownMenuItem>
+
+              {/* Delete Action */}
               <DropdownMenuItem
                 className="flex items-center cursor-pointer"
                 onClick={(e) => handleActionClick(e, "delete")}
               >
                 <Trash size={16} className="mr-2" /> Delete
               </DropdownMenuItem>
+
+              {/* Share Action */}
               <DropdownMenuItem
                 className="flex items-center cursor-pointer"
                 onClick={(e) => handleActionClick(e, "share")}
               >
                 <Share2 size={16} className="mr-2" /> Share
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex items-center cursor-pointer"
-                onClick={(e) => handleActionClick(e, "archive")}
-              >
-                <Archive size={16} className="mr-2" />{" "}
-                {article.isArchived ? "Unarchive" : "Archive"}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="flex items-center cursor-pointer"
-                onClick={(e) => handleActionClick(e, "favorite")}
-              >
-                <Bookmark size={16} className="mr-2" />{" "}
-                {article.isFavorited ? "Unfavorite" : "Favorite"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

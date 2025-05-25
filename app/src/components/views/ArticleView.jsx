@@ -24,6 +24,7 @@ import {
   DialogClose,
 } from "../../../components/ui/dialog";
 import { Button } from "../../../components/ui/button"; // Corrected path
+import ArticleViewSkeleton from "../ArticleViewSkeleton"; // Added import for skeleton
 
 function ArticleView() {
   const { id } = useParams();
@@ -171,11 +172,7 @@ function ArticleView() {
   };
 
   if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <p>Loading article...</p>
-      </div>
-    );
+    return <ArticleViewSkeleton />; // Use the skeleton component
   }
 
   if (error) {
