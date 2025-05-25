@@ -241,7 +241,7 @@ function ArticleView() {
         ></div>
         {/* Left section: Back button - Positioned absolutely to the left */}
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/")}
           className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors z-40"
           aria-label="Back to Saves"
         >

@@ -4,7 +4,7 @@ import { supabase } from "../../lib/supabase";
 import ArticleGrid from "../ArticleGrid";
 import ArticleGridSkeleton from "../ArticleGridSkeleton";
 
-function SavesView() {
+function SavesView({ refreshKey }) {
   const { user } = useAuth();
   const [articles, setArticles] = useState([]);
   const [fetchingArticles, setFetchingArticles] = useState(true);
@@ -38,7 +38,7 @@ function SavesView() {
     };
 
     fetchArticles();
-  }, [user]);
+  }, [user, refreshKey]);
 
   if (fetchingArticles) {
     return <ArticleGridSkeleton />;

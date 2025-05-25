@@ -15,6 +15,7 @@ import SavesView from "./components/views/SavesView";
 import FavoritesView from "./components/views/FavoritesView";
 import ArchivesView from "./components/views/ArchivesView";
 import ArticleView from "./components/views/ArticleView";
+import SaveArticleHandler from "./components/views/SaveArticleHandler";
 import { LandingPage } from "./components/LandingPage";
 
 function App() {
@@ -30,18 +31,43 @@ function App() {
 function AppLayout() {
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const triggerArticleRefresh = () => {
+    setRefreshKey((prevKey) => prevKey + 1);
+  };
 
   const showNavbarPaths = ["/", "/favorites", "/archives"];
 
   const showMainNavbar = showNavbarPaths.includes(location.pathname);
 
   if (!user) {
+    if (location.pathname.startsWith("/save-article")) {
+      return (
+        <Routes>
+          <Route path="/save-article" element={<SaveArticleHandler />} />
+        </Routes>
+      );
+    }
+    if (location.pathname === "/auth/callback") {
+      return (
+        <Routes>
+          <Route path="/auth/callback" element={<AuthCallback />} />
+        </Routes>
+      );
+    }
     return <LandingPage />;
   }
 
   return (
     <div className="flex flex-col min-h-screen">
-      {showMainNavbar && <Navbar user={user} onSignOut={signOut} />}
+      {showMainNavbar && (
+        <Navbar
+          user={user}
+          onSignOut={signOut}
+          onArticleAdded={triggerArticleRefresh}
+        />
+      )}
 
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
@@ -49,7 +75,7 @@ function AppLayout() {
           path="/"
           element={
             <ViewWrapper>
-              <SavesView />
+              <SavesView refreshKey={refreshKey} />
             </ViewWrapper>
           }
         />
@@ -57,7 +83,7 @@ function AppLayout() {
           path="/favorites"
           element={
             <ViewWrapper>
-              <FavoritesView />
+              <FavoritesView refreshKey={refreshKey} />
             </ViewWrapper>
           }
         />
@@ -65,11 +91,12 @@ function AppLayout() {
           path="/archives"
           element={
             <ViewWrapper>
-              <ArchivesView />
+              <ArchivesView refreshKey={refreshKey} />
             </ViewWrapper>
           }
         />
         <Route path="/article/:id" element={<ArticleView />} />
+        <Route path="/save-article" element={<SaveArticleHandler />} />
       </Routes>
     </div>
   );
