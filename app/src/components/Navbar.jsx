@@ -1,13 +1,11 @@
 import React, { useState } from "react";
-import { PlusSquare, Search, LogOut } from "lucide-react";
-import { NavLink } from "react-router-dom";
+import { PlusSquare, Search, LogOut, Menu } from "lucide-react";
+import { NavLink, Link } from "react-router-dom";
 import logo from "../assets/icon48.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
@@ -20,27 +18,56 @@ import {
 import { Button } from "../../components/ui/button";
 import AddUrlPrompt from "./AddUrlPrompt";
 import SearchPrompt from "./SearchPrompt";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../../components/ui/sheet";
 
 function Navbar({ user, onSignOut, onArticleAdded }) {
   const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const handleSearch = (searchTerm) => {
     console.log("Searching for:", searchTerm);
     setIsSearchOpen(false);
+    setIsSheetOpen(false);
+  };
+
+  const handleAddUrlClick = () => {
+    setIsAddUrlOpen(true);
+    setIsSheetOpen(false);
+  };
+
+  const handleNavLinkClickInSheet = () => {
+    setIsSheetOpen(false);
+  };
+
+  const handleSignOutInSheet = () => {
+    onSignOut();
+    setIsSheetOpen(false);
   };
 
   return (
     <>
-      <nav className="sticky top-0 z-50 relative flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white w-full">
-        {/* Left section: Logo and App Name */}
-        <div className="flex items-center space-x-2 flex-grow-0">
+      <nav className="sticky top-0 z-50 flex items-center justify-between px-4 md:px-6 py-3 border-b border-gray-200 bg-white w-full">
+        {/* Left section: Logo and App Name (always visible) */}
+        <Link
+          to="/"
+          className="flex items-center space-x-2 focus:outline-none focus:ring-2 focus:ring-orange-500 rounded-md"
+        >
           <img src={logo} alt="Jaib Logo" className="h-8 w-8" />
-          <span className="text-xl font-bold">Jaib</span>
-        </div>
+          <span className="text-xl font-bold text-gray-800">Jaib</span>
+        </Link>
 
-        {/* Middle section: Navigation Links - Updated for absolute centering */}
-        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center space-x-8">
+        {/* Middle section: Desktop Navigation Links */}
+        <div className="hidden md:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 items-center justify-center space-x-8">
           <NavLink
             to="/"
             end
@@ -95,9 +122,8 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
           </NavLink>
         </div>
 
-        {/* Right section: Icons and User Avatar */}
-        <div className="flex items-center space-x-4 flex-grow-0 justify-end">
-          {/* Add URL Button - Updated */}
+        {/* Right section: Desktop Icons and User Avatar */}
+        <div className="hidden md:flex items-center space-x-4">
           <Button
             onClick={() => setIsAddUrlOpen(true)}
             className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 h-auto"
@@ -105,8 +131,6 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
           >
             <PlusSquare size={18} className="mr-2" />+ Add URL
           </Button>
-
-          {/* Search Icon */}
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -123,8 +147,6 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-
-          {/* User Avatar with Dropdown */}
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -147,11 +169,116 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
             </DropdownMenu>
           )}
         </div>
+
+        {/* Mobile: Hamburger Menu */}
+        <div className="md:hidden">
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" aria-label="Open menu" className="p-2">
+                <Menu size={28} />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[300px] sm:w-[340px] p-6">
+              <SheetHeader className="mb-6">
+                <SheetTitle className="text-left">Menu</SheetTitle>
+              </SheetHeader>
+              <div className="flex flex-col space-y-3">
+                <Button
+                  onClick={handleAddUrlClick}
+                  className="w-11/12 mx-auto justify-start bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 h-auto text-base"
+                  variant="default"
+                >
+                  <PlusSquare size={18} className="mr-3" />
+                  Add URL
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsSearchOpen(true);
+                    setIsSheetOpen(false);
+                  }}
+                  className="w-11/12 mx-auto justify-start px-3 py-2 h-auto text-base"
+                  variant="outline"
+                >
+                  <Search size={18} className="mr-3" />
+                  Search
+                </Button>
+
+                <nav className="flex flex-col space-y-1.5 pt-4 border-t mt-3">
+                  <NavLink
+                    to="/"
+                    end
+                    onClick={handleNavLinkClickInSheet}
+                    className={({ isActive }) =>
+                      `flex items-center py-2.5 px-3 rounded-md text-base font-medium w-11/12 mx-auto ${
+                        isActive
+                          ? "bg-orange-100 text-orange-700"
+                          : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    Saves
+                  </NavLink>
+                  <NavLink
+                    to="/favorites"
+                    onClick={handleNavLinkClickInSheet}
+                    className={({ isActive }) =>
+                      `flex items-center py-2.5 px-3 rounded-md text-base font-medium w-11/12 mx-auto ${
+                        isActive
+                          ? "bg-orange-100 text-orange-700"
+                          : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    Favorites
+                  </NavLink>
+                  <NavLink
+                    to="/archives"
+                    onClick={handleNavLinkClickInSheet}
+                    className={({ isActive }) =>
+                      `flex items-center py-2.5 px-3 rounded-md text-base font-medium w-11/12 mx-auto ${
+                        isActive
+                          ? "bg-orange-100 text-orange-700"
+                          : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    Archives
+                  </NavLink>
+                </nav>
+              </div>
+              {user && (
+                <SheetFooter className="mt-auto pt-6 border-t">
+                  <div className="flex flex-col w-full space-y-3">
+                    <div className="flex items-center space-x-3 px-1 w-11/12 mx-auto">
+                      <Avatar className="h-9 w-9 border-2 border-orange-500">
+                        <AvatarFallback className="bg-orange-100 text-orange-600">
+                          {user.email ? user.email.charAt(0).toUpperCase() : ""}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-medium text-gray-700 truncate">
+                        {user.email}
+                      </span>
+                    </div>
+                    <Button
+                      onClick={handleSignOutInSheet}
+                      variant="outline"
+                      className="w-11/12 mx-auto justify-center text-red-600 hover:text-red-700 hover:border-red-300 hover:bg-red-50 text-base"
+                    >
+                      <LogOut size={16} className="mr-2" /> Sign Out
+                    </Button>
+                  </div>
+                </SheetFooter>
+              )}
+            </SheetContent>
+          </Sheet>
+        </div>
       </nav>
       <AddUrlPrompt
         isOpen={isAddUrlOpen}
         onClose={() => setIsAddUrlOpen(false)}
-        onAdd={onArticleAdded}
+        onAdd={(newArticle) => {
+          onArticleAdded(newArticle);
+        }}
       />
       <SearchPrompt
         isOpen={isSearchOpen}

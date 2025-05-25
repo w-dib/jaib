@@ -307,10 +307,7 @@ function ArticleCard({
             />
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center text-gray-400 h-full">
-            <Image size={24} className="mb-2" />
-            <span className="text-sm">No Image</span>
-          </div>
+          <div className="w-full h-full bg-orange-100"></div>
         )}
       </div>
 

@@ -229,11 +229,9 @@ function ArticleView() {
     <div className="flex flex-col items-center mt-[72px] pb-16 min-h-screen">
       {" "}
       {/* Adjusted mt-[68px] to mt-[72px] */}
-      {/* Fixed Article Nav Bar (similar to Pocket's) - Positioned fixed at the very top */}
-      {/* Increased vertical padding (py-4) to increase header height */}
-      <div className="fixed top-0 w-full bg-white border-b border-gray-200 z-20 flex items-center justify-center py-4 px-4">
+      {/* Fixed Article Nav Bar - Explicit height set, py-4 removed, px-4 kept */}
+      <div className="fixed top-0 w-full bg-white border-b border-gray-200 z-20 flex items-center justify-center h-16 px-4">
         {" "}
-        {/* Increased py-2 to py-4 */}
         {/* Reading progress bar - Moved inside the header, positioned at the bottom */}
         <div
           className="absolute bottom-0 left-0 h-1 bg-orange-500 z-30"
@@ -248,67 +246,65 @@ function ArticleView() {
           {/* Increased icon size */}
           <ArrowLeft size={iconSize} className="text-gray-600" />
         </button>
-        {/* Middle section: Action icons - Centered by the parent flex container */}
-        {/* Wrap icon group with TooltipProvider */}
-        <TooltipProvider delayDuration={200}>
-          <div className="flex items-center space-x-4">
-            {/* Favorite/Unfavorite Icon - Star */}
+        {/* Centered Action Icons Group */}
+        {/* This div will be absolutely centered */}
+        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center space-x-2 md:space-x-3 z-30">
+          {/* Favorite Button */}
+          <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  onClick={handleFavoriteToggle} // Added onClick handler
+                  onClick={handleFavoriteToggle}
                   className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  aria-label={
-                    isFavorited ? "Unfavorite Article" : "Favorite Article"
-                  }
+                  aria-label={isFavorited ? "Unfavorite" : "Favorite"}
                 >
-                  {isFavorited ? ( // Use local state
-                    <Star
-                      size={iconSize}
-                      className="text-yellow-500 fill-yellow-500"
-                    /> // Filled and yellow if favorited
-                  ) : (
-                    <Star size={iconSize} className="text-gray-600" /> // Empty if not favorited
-                  )}
+                  <Star
+                    size={iconSize}
+                    className={
+                      isFavorited
+                        ? "text-yellow-500 fill-yellow-500"
+                        : "text-gray-600"
+                    }
+                  />
                 </button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>
-                  {isFavorited ? "Remove from Favorites" : "Add to Favorites"}
-                </p>
+                <p>{isFavorited ? "Unfavorite" : "Favorite"}</p>
               </TooltipContent>
             </Tooltip>
+          </TooltipProvider>
 
-            {/* Tag (Highlighter) Icon */}
+          {/* Highlight/Tag Button (Placeholder) */}
+          <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
+                  onClick={() => console.log("Highlight/Tag clicked")}
                   className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  aria-label="Highlight Article" // Changed from "Tag Article"
+                  aria-label="Add highlight or tag"
                 >
-                  {/* Increased icon size */}
-                  <Highlighter size={iconSize} className="text-gray-600" />{" "}
-                  {/* Using Highlighter icon */}
+                  <Highlighter size={iconSize} className="text-gray-600" />
                 </button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Highlight</p>
+                <p>Highlight/Tag (Soon)</p>
               </TooltipContent>
             </Tooltip>
+          </TooltipProvider>
 
-            {/* Archive/Unarchive Icon - Book */}
+          {/* Archive Button */}
+          <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  onClick={handleArchiveToggle} // Added onClick handler
+                  onClick={handleArchiveToggle}
                   className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  aria-label={isRead ? "Unarchive Article" : "Archive Article"}
+                  aria-label={isRead ? "Unarchive" : "Archive"}
                 >
-                  {/* Increased icon size */}
-                  {isRead ? ( // Use local state
-                    <BookUp size={iconSize} className="text-orange-500" /> // BookUp if read (archived)
+                  {isRead ? (
+                    <BookUp size={iconSize} className="text-orange-500" />
                   ) : (
-                    <BookDown size={iconSize} className="text-gray-600" /> // BookDown if not read (in saves)
+                    <BookDown size={iconSize} className="text-gray-600" />
                   )}
                 </button>
               </TooltipTrigger>
@@ -316,20 +312,21 @@ function ArticleView() {
                 <p>{isRead ? "Move to Saves" : "Archive"}</p>
               </TooltipContent>
             </Tooltip>
+          </TooltipProvider>
 
-            {/* Delete Icon - Trash */}
-            <Dialog
-              open={isDeleteDialogOpen}
-              onOpenChange={setIsDeleteDialogOpen}
-            >
+          {/* Delete Button with Dialog */}
+          <Dialog
+            open={isDeleteDialogOpen}
+            onOpenChange={setIsDeleteDialogOpen}
+          >
+            <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <DialogTrigger asChild>
                     <button
                       className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                      aria-label="Delete Article"
+                      aria-label="Delete article"
                     >
-                      {/* Increased icon size */}
                       <Trash2 size={iconSize} className="text-gray-600" />
                     </button>
                   </DialogTrigger>
@@ -338,29 +335,27 @@ function ArticleView() {
                   <p>Delete</p>
                 </TooltipContent>
               </Tooltip>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Confirm Deletion</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to delete this article? This action
-                    cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  {/* Add delete button inside dialog */}
-                  <Button variant="destructive" onClick={handleDeleteArticle}>
-                    Delete
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            {/* Share and Display Settings icons removed as requested */}
-          </div>
-        </TooltipProvider>
+            </TooltipProvider>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirm Deletion</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete this article? This action
+                  cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button variant="destructive" onClick={handleDeleteArticle}>
+                  Delete
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>{" "}
+        {/* End of Centered Action Icons Group */}
         {/* Right section: Placeholder to balance the back button */}
         {/* Adjusted width slightly as two icons were removed */}
         <div className="w-10 flex-shrink-0"></div> {/* Placeholder div */}
