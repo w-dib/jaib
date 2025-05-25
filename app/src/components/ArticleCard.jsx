@@ -33,44 +33,73 @@ function ArticleCard({ article }) {
   // Function to extract first image URL from content with better URL handling
   const extractFirstImageUrl = (content, baseUrl) => {
     if (!content) {
-      console.log("Article data:", article);
+      // console.log("Article data for image extraction (no content):", article);
       return null;
     }
 
-    // Log the content to see what we're working with
-    console.log("Content to parse:", content.substring(0, 200) + "...");
+    // console.log("Content to parse for image:", content.substring(0, 300) + "...");
 
-    // Updated regex to handle the specific HTML structure
     const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/i;
     const match = content.match(imgRegex);
 
-    if (!match) {
-      console.log("No image tag found in content");
+    if (!match || !match[1]) {
+      // console.log("No image src found in content with regex.");
       return null;
     }
 
-    let imageUrl = match[1];
-    console.log("Found image URL:", imageUrl);
+    let imageUrl = match[1].trim();
+    // console.log("Initial matched image URL:", imageUrl);
 
-    // Handle relative URLs
-    if (imageUrl.startsWith("/")) {
+    let parsedBaseUrl;
+    try {
+      parsedBaseUrl = new URL(baseUrl);
+    } catch (e) {
+      console.error(
+        "Invalid baseUrl provided to extractFirstImageUrl:",
+        baseUrl,
+        "Error:",
+        e
+      );
+      return null; // Cannot resolve relative URLs without a valid base
+    }
+
+    if (imageUrl.startsWith("//")) {
+      imageUrl = `${parsedBaseUrl.protocol}${imageUrl}`;
+      // console.log("Converted protocol-relative URL to:", imageUrl);
+    } else if (imageUrl.startsWith("/")) {
+      // Path-relative, not starting with //
+      imageUrl = `${parsedBaseUrl.origin}${imageUrl}`;
+      // console.log("Converted path-relative URL to:", imageUrl);
+    } else if (
+      !imageUrl.startsWith("http://") &&
+      !imageUrl.startsWith("https://") &&
+      !imageUrl.startsWith("data:")
+    ) {
+      // It's not protocol-relative, not path-relative, and not absolute. Try to resolve it against the base URL's path.
       try {
-        const base = new URL(baseUrl);
-        imageUrl = `${base.origin}${imageUrl}`;
-        console.log("Converted relative URL to:", imageUrl);
+        imageUrl = new URL(imageUrl, parsedBaseUrl.href).href;
+        // console.log("Resolved potentially relative URL against base:", imageUrl);
       } catch (e) {
-        console.log("Error converting relative URL:", e);
+        console.error(
+          "Failed to resolve ambiguous relative URL:",
+          imageUrl,
+          "against base:",
+          parsedBaseUrl.href,
+          "Error:",
+          e
+        );
         return null;
       }
     }
+    // If it starts with http://, https://, or data:, it's considered absolute or self-contained.
 
-    // Validate URL
+    // Final validation
     try {
-      new URL(imageUrl);
-      console.log("Final validated URL:", imageUrl);
-      return imageUrl;
+      const finalUrl = new URL(imageUrl);
+      // console.log("Final validated image URL:", finalUrl.href);
+      return finalUrl.href;
     } catch (e) {
-      console.log("Invalid URL:", e);
+      console.error("Invalid final image URL:", imageUrl, "Error:", e);
       return null;
     }
   };
