@@ -7,52 +7,99 @@ import ArticleGridSkeleton from "../ArticleGridSkeleton";
 function FavoritesView({ refreshKey }) {
   const { user } = useAuth();
   const [articles, setArticles] = useState([]);
-  const [fetchingArticles, setFetchingArticles] = useState(true);
-  const [fetchError, setFetchError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchArticles = async () => {
+    const fetchFavorites = async () => {
       if (!user) {
         setArticles([]);
-        setFetchingArticles(false);
+        setLoading(false);
         return;
       }
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error: fetchError } = await supabase
+          .from("articles")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("is_favorite", true)
+          .order("saved_at", { ascending: false });
 
-      setFetchingArticles(true);
-      setFetchError(null);
-
-      const { data, error } = await supabase
-        .from("articles")
-        .select("id, title, url, byline, saved_at, content, excerpt")
-        .eq("is_favorite", true);
-
-      if (error) {
-        console.error("Error fetching articles:", error);
-        setFetchError(error.message);
+        if (fetchError) throw fetchError;
+        setArticles(data || []);
+      } catch (err) {
+        console.error("Error fetching favorite articles:", err);
+        setError(err.message);
         setArticles([]);
-      } else {
-        setArticles(data);
-        setFetchError(null);
+      } finally {
+        setLoading(false);
       }
-      setFetchingArticles(false);
     };
 
-    fetchArticles();
+    fetchFavorites();
   }, [user, refreshKey]);
 
-  if (fetchingArticles) {
+  const handleArticleDeleted = (deletedArticleId) => {
+    setArticles((prevArticles) =>
+      prevArticles.filter((article) => article.id !== deletedArticleId)
+    );
+  };
+
+  const handleArticleFavorited = (
+    favoritedArticleId,
+    newFavoriteStatus,
+    error
+  ) => {
+    if (!error && newFavoriteStatus === false) {
+      console.log(
+        `Removing article ${favoritedArticleId} from FavoritesView due to unfavorite.`
+      );
+      setArticles((prevArticles) =>
+        prevArticles.filter((article) => article.id !== favoritedArticleId)
+      );
+    } else if (error) {
+      console.log(
+        `Favorite update for article ${favoritedArticleId} failed, not removing from FavoritesView.`
+      );
+    }
+  };
+
+  const handleArticleArchived = (archivedArticleId, newArchiveStatus) => {
+    console.log(
+      `Article ${archivedArticleId} archive status changed to ${newArchiveStatus}, FavoritesView taking no direct list action.`
+    );
+  };
+
+  if (loading) {
     return <ArticleGridSkeleton />;
   }
 
-  if (fetchError) {
-    return <p className="text-red-500">Error loading articles: {fetchError}</p>;
+  if (error) {
+    return (
+      <div className="text-center py-10">
+        <p className="text-red-500">Error loading articles: {error}</p>
+      </div>
+    );
   }
 
   if (articles.length === 0) {
-    return <p>No favorite articles yet.</p>;
+    return (
+      <div className="text-center py-10">
+        <p className="text-gray-500">No favorite articles yet.</p>
+      </div>
+    );
   }
 
-  return <ArticleGrid articles={articles} />;
+  return (
+    <ArticleGrid
+      articles={articles}
+      onArticleDeleted={handleArticleDeleted}
+      onArticleArchived={handleArticleArchived}
+      onArticleFavorited={handleArticleFavorited}
+    />
+  );
 }
 
 export default FavoritesView;

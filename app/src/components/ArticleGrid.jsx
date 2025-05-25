@@ -1,7 +1,12 @@
 import React from "react";
 import ArticleCard from "./ArticleCard";
 
-function ArticleGrid({ articles }) {
+function ArticleGrid({
+  articles,
+  onArticleDeleted,
+  onArticleArchived,
+  onArticleFavorited,
+}) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
       {/* 
@@ -10,7 +15,13 @@ function ArticleGrid({ articles }) {
         a separate component for displaying a single article item.
       */}
       {articles.map((article) => (
-        <ArticleCard key={article.id} article={article} />
+        <ArticleCard
+          key={article.id}
+          article={article}
+          onArticleDeleted={onArticleDeleted}
+          onArticleArchived={onArticleArchived}
+          onArticleFavorited={onArticleFavorited}
+        />
       ))}
     </div>
   );

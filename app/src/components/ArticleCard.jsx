@@ -17,18 +17,43 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu"; // Corrected import path based on user feedback
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "../../components/ui/dialog"; // Added Dialog imports
+import { Button } from "../../components/ui/button"; // Added Button import
 import { supabase } from "../lib/supabase"; // Corrected import path
 import { useAuth } from "../contexts/AuthContext"; // Corrected import path
 
-function ArticleCard({ article }) {
+function ArticleCard({
+  article,
+  onArticleDeleted,
+  onArticleArchived,
+  onArticleFavorited,
+}) {
   const navigate = useNavigate();
   const { user } = useAuth(); // Added
   const [imageLoading, setImageLoading] = useState(true);
   // We need a way to reflect changes in the UI immediately.
   // Adding local state for isFavorited and isArchived.
   // Initialize with prop values, but allow local updates.
-  const [isFavorited, setIsFavorited] = useState(article.is_favorited);
+  const [isFavorited, setIsFavorited] = useState(article.is_favorite);
   const [isArchived, setIsArchived] = useState(article.is_read);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // Added state for delete dialog
+
+  // Sync local state with prop changes
+  React.useEffect(() => {
+    setIsFavorited(article.is_favorite);
+  }, [article.is_favorite]);
+
+  React.useEffect(() => {
+    setIsArchived(article.is_read);
+  }, [article.is_read]);
 
   // Function to extract first image URL from content with better URL handling
   const extractFirstImageUrl = (content, baseUrl) => {
@@ -123,8 +148,11 @@ function ArticleCard({ article }) {
     }
   };
 
-  // Get image URL from content
-  const imageUrl = extractFirstImageUrl(article.content, article.url);
+  // Get image URL from content, prioritizing a direct lead_image_url or image_url prop if available
+  const imageUrl =
+    article.lead_image_url ||
+    article.image_url ||
+    extractFirstImageUrl(article.content, article.url);
 
   // Reset image state when URL changes
   React.useEffect(() => {
@@ -132,100 +160,120 @@ function ArticleCard({ article }) {
   }, [imageUrl]);
 
   const handleCardClick = (e) => {
-    // Prevent navigation if clicking on the dropdown menu
-    if (e.target.closest(".dropdown-menu")) {
+    // Prevent navigation if clicking on elements that should not trigger it (e.g. dropdown trigger, dialog content)
+    if (e.target.closest(".actions-trigger-button, .dialog-content-wrapper")) {
       return;
     }
     navigate(`/article/${article.id}`);
   };
 
-  const handleActionClick = async (e, action) => {
-    // Made async
-    e.stopPropagation(); // Prevent card click when clicking action buttons
+  const handleConfirmDelete = async () => {
     if (!user) {
-      console.error("User not authenticated for action:", action);
-      // Optionally, navigate to login or show a message
+      console.error("User not authenticated for delete action.");
       return;
     }
+    try {
+      const { error: deleteError } = await supabase
+        .from("articles")
+        .delete()
+        .eq("id", article.id)
+        .eq("user_id", user.id);
+      if (deleteError) throw deleteError;
+      console.log("Article deleted successfully from ArticleCard.");
+      setIsDeleteDialogOpen(false);
+      if (onArticleDeleted) {
+        onArticleDeleted(article.id); // Callback to parent to update list
+      }
+    } catch (error) {
+      console.error("Error deleting article from ArticleCard:", error);
+      // Optionally, show an error message in the dialog or as a toast
+      setIsDeleteDialogOpen(false); // Still close dialog on error, or keep open to show error
+    }
+  };
+
+  const handleActionClick = async (e, action) => {
+    e.stopPropagation();
+    if (!user) {
+      console.error("User not authenticated for action:", action);
+      return;
+    }
+    console.log(`Attempting action: ${action} for article ID: ${article.id}`); // Log action attempt
 
     try {
       switch (action) {
         case "favorite": {
           const newFavoriteStatus = !isFavorited;
-          const { error: favoriteError } = await supabase
+          console.log(
+            `Optimistically setting favorite to: ${newFavoriteStatus}`
+          );
+          setIsFavorited(newFavoriteStatus);
+
+          console.log(
+            `Calling Supabase to set is_favorite=${newFavoriteStatus} for article ${article.id}`
+          );
+          const { error } = await supabase
             .from("articles")
-            .update({ is_favorited: newFavoriteStatus })
+            .update({ is_favorite: newFavoriteStatus })
             .eq("id", article.id)
             .eq("user_id", user.id);
-          if (favoriteError) throw favoriteError;
-          setIsFavorited(newFavoriteStatus); // Update local state
-          console.log(
-            `Article ${
-              newFavoriteStatus ? "favorited" : "unfavorited"
-            } successfully.`
-          );
+
+          if (error) {
+            console.error(
+              "Supabase error updating favorite status:",
+              error.message
+            );
+            console.log(
+              `Reverting optimistic favorite status for article ${article.id}`
+            );
+            setIsFavorited(!newFavoriteStatus);
+            // No throw error here to allow onArticleFavorited to still be called for potential UI cleanup
+          } else {
+            console.log(
+              `Supabase favorite status updated successfully for article ${article.id}.`
+            );
+          }
+
+          if (onArticleFavorited) {
+            console.log(
+              `Calling onArticleFavorited callback for article ${article.id} with status ${newFavoriteStatus}`
+            );
+            onArticleFavorited(article.id, newFavoriteStatus, error); // Pass error to callback
+          }
           break;
         }
         case "archive": {
           const newArchiveStatus = !isArchived;
-          const { error: archiveError } = await supabase
+          setIsArchived(newArchiveStatus);
+          const { error } = await supabase
             .from("articles")
-            .update({ is_read: newArchiveStatus }) // 'is_read' for archive
+            .update({ is_read: newArchiveStatus })
             .eq("id", article.id)
             .eq("user_id", user.id);
-          if (archiveError) throw archiveError;
-          setIsArchived(newArchiveStatus); // Update local state
-          console.log(
-            `Article ${
-              newArchiveStatus ? "archived" : "unarchived"
-            } successfully.`
-          );
-          break;
-        }
-        case "delete": {
-          // Add a confirmation dialog here in a real app
-          const { error: deleteError } = await supabase
-            .from("articles")
-            .delete()
-            .eq("id", article.id)
-            .eq("user_id", user.id);
-          if (deleteError) throw deleteError;
-          console.log("Article deleted successfully.");
-          // Optionally, navigate away or refresh the list
-          // For now, we can just log or perhaps make the card disappear
-          // This might require lifting state up or a callback prop
-          // For simplicity, we'll just log and the card remains (will disappear on next fetch)
-          break;
-        }
-        case "share": {
-          // Implement share functionality (e.g., using navigator.share if available)
-          if (navigator.share) {
-            navigator
-              .share({
-                title: article.title,
-                text: `Check out this article: ${article.title}`,
-                url: article.url,
-              })
-              .then(() => console.log("Successful share"))
-              .catch((error) => console.log("Error sharing", error));
+          if (error) {
+            setIsArchived(!newArchiveStatus);
+            console.error("Error updating archive status:", error);
           } else {
-            console.log(
-              "Share not supported on this browser, copy URL to clipboard or implement custom share UI."
-            );
-            // Fallback: copy to clipboard
-            navigator.clipboard
-              .writeText(article.url)
-              .then(() => console.log("URL copied to clipboard!"))
-              .catch((err) => console.error("Failed to copy URL: ", err));
+            if (onArticleArchived) {
+              onArticleArchived(article.id, newArchiveStatus);
+            }
           }
           break;
         }
+        case "delete":
+          setIsDeleteDialogOpen(true);
+          break;
+        case "share":
+          console.log("Share action clicked (currently no-op)");
+          break;
         default:
-          console.log(`Action clicked: ${action}`);
+          console.warn("Unknown action:", action);
       }
     } catch (error) {
-      console.error(`Error performing action ${action}:`, error.message);
-      // Optionally, show an error message to the user
+      // This will catch errors re-thrown from specific cases if any, or unexpected errors
+      console.error(
+        `General error in handleActionClick for (${action}) on article ${article.id}:`,
+        error.message
+      );
     }
   };
 
@@ -247,7 +295,7 @@ function ArticleCard({ article }) {
             )}
             <img
               src={imageUrl}
-              alt={article.title}
+              alt={article.title || "Article Image"}
               className={`w-full h-full object-cover transition-opacity duration-300 ${
                 imageLoading ? "opacity-0" : "opacity-100"
               }`}
@@ -259,7 +307,7 @@ function ArticleCard({ article }) {
             />
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center text-gray-400">
+          <div className="flex flex-col items-center justify-center text-gray-400 h-full">
             <Image size={24} className="mb-2" />
             <span className="text-sm">No Image</span>
           </div>
@@ -269,17 +317,19 @@ function ArticleCard({ article }) {
       <div className="p-4 flex flex-col flex-grow">
         {/* Title */}
         <h3 className="text-lg font-semibold mb-1 line-clamp-2 text-left">
-          {article.title}
+          {article.title || "Untitled Article"}
         </h3>
 
-        <div className="mt-auto flex items-center justify-between text-sm text-gray-500">
+        <div className="mt-auto flex items-center justify-between text-sm text-gray-500 pt-2">
           {/* Source (Base URL) and Reading Time */}
           <div className="flex flex-col items-start">
-            <p className="text-sm text-gray-600 line-clamp-1">
+            <p className="text-xs text-gray-600 line-clamp-1">
               {getBaseUrl(article.url)}
             </p>
             <span>
-              {calculateReadingTime(article.excerpt || article.title)}
+              {calculateReadingTime(
+                article.excerpt || article.content || article.title
+              )}
             </span>
           </div>
 
@@ -287,8 +337,9 @@ function ArticleCard({ article }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="p-1 rounded-full hover:bg-gray-100"
+                className="p-1 rounded-full hover:bg-gray-100 actions-trigger-button"
                 onClick={(e) => e.stopPropagation()}
+                aria-label="Article actions"
               >
                 <MoreHorizontal size={20} />
               </button>
@@ -301,14 +352,12 @@ function ArticleCard({ article }) {
                 className="flex items-center cursor-pointer"
                 onClick={(e) => handleActionClick(e, "favorite")}
               >
-                {isFavorited ? (
-                  <Star
-                    size={16}
-                    className="mr-2 text-yellow-500 fill-yellow-500"
-                  />
-                ) : (
-                  <Star size={16} className="mr-2" />
-                )}
+                <Star
+                  size={16}
+                  className={`mr-2 ${
+                    isFavorited ? "text-yellow-500 fill-yellow-500" : ""
+                  }`}
+                />
                 {isFavorited ? "Unfavorite" : "Favorite"}
               </DropdownMenuItem>
 
@@ -344,6 +393,34 @@ function ArticleCard({ article }) {
           </DropdownMenu>
         </div>
       </div>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="dialog-content">
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this article? This action cannot
+              be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" onClick={(e) => e.stopPropagation()}>
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button
+              variant="destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleConfirmDelete();
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
