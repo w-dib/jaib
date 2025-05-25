@@ -57,11 +57,11 @@ export default {
               marginBottom: "0.5em",
             },
             a: {
-              color: theme("colors.green.600"),
+              color: theme("colors.orange.500"),
               textDecoration: "underline",
               textUnderlineOffset: "2px",
               "&:hover": {
-                color: theme("colors.green.700"),
+                color: theme("colors.orange.600"),
               },
             },
             blockquote: {

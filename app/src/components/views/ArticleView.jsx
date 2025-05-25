@@ -10,6 +10,7 @@ import {
   BookDown, // For Archive (if not read)
   BookUp, // For Archive (if read)
   Trash2, // For Delete
+  ExternalLink, // Added for View Original link
 } from "lucide-react";
 
 // Import ShadCN Dialog components with corrected path
@@ -24,6 +25,12 @@ import {
   DialogClose,
 } from "../../../components/ui/dialog";
 import { Button } from "../../../components/ui/button"; // Corrected path
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../../components/ui/tooltip"; // Added Tooltip imports
 import ArticleViewSkeleton from "../ArticleViewSkeleton"; // Added import for skeleton
 
 function ArticleView() {
@@ -194,6 +201,27 @@ function ArticleView() {
   // Calculate icon size
   const iconSize = 20 * 1.3; // Approximately 1.3 times the original size (26)
 
+  // Placeholder function for calculating reading time (if not already present or needs adjustment)
+  // This might already exist in your ArticleCard or utils, adjust as needed.
+  const calculateReadingTime = (text) => {
+    if (!text) return "";
+    const wordsPerMinute = 200;
+    const wordCount = text.split(/\s+/).length;
+    const minutes = Math.ceil(wordCount / wordsPerMinute);
+    return `${minutes} min read`;
+  };
+
+  // Function to extract base URL (if not already present or needs adjustment)
+  // This might already exist in your ArticleCard or utils, adjust as needed.
+  const getBaseUrl = (url) => {
+    try {
+      const urlObject = new URL(url);
+      return urlObject.hostname.replace(/^www\./, "");
+    } catch {
+      return "Source";
+    }
+  };
+
   return (
     // Overall page container - handles vertical layout and overall page scrolling
     // Add a top margin to push content below the fixed header
@@ -221,81 +249,118 @@ function ArticleView() {
           <ArrowLeft size={iconSize} className="text-gray-600" />
         </button>
         {/* Middle section: Action icons - Centered by the parent flex container */}
-        <div className="flex items-center space-x-4">
-          {/* Favorite/Unfavorite Icon - Star */}
-          <button
-            onClick={handleFavoriteToggle} // Added onClick handler
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-            aria-label="Favorite/Unfavorite Article"
-          >
-            {isFavorited ? ( // Use local state
-              <Star
-                size={iconSize}
-                className="text-yellow-500 fill-yellow-500"
-              /> // Filled and yellow if favorited
-            ) : (
-              <Star size={iconSize} className="text-gray-600" /> // Empty if not favorited
-            )}
-          </button>
-          {/* Tag (Highlighter) Icon */}
-          <button
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-            aria-label="Tag Article"
-          >
-            {/* Increased icon size */}
-            <Highlighter size={iconSize} className="text-gray-600" />{" "}
-            {/* Using Highlighter icon */}
-          </button>
-          {/* Archive/Unarchive Icon - Book */}
-          <button
-            onClick={handleArchiveToggle} // Added onClick handler
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-            aria-label="Archive/Unarchive Article"
-          >
-            {/* Increased icon size */}
-            {isRead ? ( // Use local state
-              <BookUp size={iconSize} className="text-orange-500" /> // BookUp if read (archived)
-            ) : (
-              <BookDown size={iconSize} className="text-gray-600" /> // BookDown if not read (in saves)
-            )}
-          </button>
-          {/* Delete Icon - Trash */}
-          {/* Wrap delete button in DialogTrigger */}
-          <Dialog
-            open={isDeleteDialogOpen}
-            onOpenChange={setIsDeleteDialogOpen}
-          >
-            <DialogTrigger asChild>
-              <button
-                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                aria-label="Delete Article"
-              >
-                {/* Increased icon size */}
-                <Trash2 size={iconSize} className="text-gray-600" />
-              </button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Confirm Deletion</DialogTitle>
-                <DialogDescription>
-                  Are you sure you want to delete this article? This action
-                  cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                {/* Add delete button inside dialog */}
-                <Button variant="destructive" onClick={handleDeleteArticle}>
-                  Delete
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+        {/* Wrap icon group with TooltipProvider */}
+        <TooltipProvider delayDuration={200}>
+          <div className="flex items-center space-x-4">
+            {/* Favorite/Unfavorite Icon - Star */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleFavoriteToggle} // Added onClick handler
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  aria-label={
+                    isFavorited ? "Unfavorite Article" : "Favorite Article"
+                  }
+                >
+                  {isFavorited ? ( // Use local state
+                    <Star
+                      size={iconSize}
+                      className="text-yellow-500 fill-yellow-500"
+                    /> // Filled and yellow if favorited
+                  ) : (
+                    <Star size={iconSize} className="text-gray-600" /> // Empty if not favorited
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>
+                  {isFavorited ? "Remove from Favorites" : "Add to Favorites"}
+                </p>
+              </TooltipContent>
+            </Tooltip>
 
-          {/* Share and Display Settings icons removed as requested */}
-        </div>
+            {/* Tag (Highlighter) Icon */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  aria-label="Highlight Article" // Changed from "Tag Article"
+                >
+                  {/* Increased icon size */}
+                  <Highlighter size={iconSize} className="text-gray-600" />{" "}
+                  {/* Using Highlighter icon */}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Highlight</p>
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Archive/Unarchive Icon - Book */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleArchiveToggle} // Added onClick handler
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  aria-label={isRead ? "Unarchive Article" : "Archive Article"}
+                >
+                  {/* Increased icon size */}
+                  {isRead ? ( // Use local state
+                    <BookUp size={iconSize} className="text-orange-500" /> // BookUp if read (archived)
+                  ) : (
+                    <BookDown size={iconSize} className="text-gray-600" /> // BookDown if not read (in saves)
+                  )}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{isRead ? "Move to Saves" : "Archive"}</p>
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Delete Icon - Trash */}
+            <Dialog
+              open={isDeleteDialogOpen}
+              onOpenChange={setIsDeleteDialogOpen}
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <DialogTrigger asChild>
+                    <button
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                      aria-label="Delete Article"
+                    >
+                      {/* Increased icon size */}
+                      <Trash2 size={iconSize} className="text-gray-600" />
+                    </button>
+                  </DialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete</p>
+                </TooltipContent>
+              </Tooltip>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirm Deletion</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete this article? This action
+                    cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  {/* Add delete button inside dialog */}
+                  <Button variant="destructive" onClick={handleDeleteArticle}>
+                    Delete
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Share and Display Settings icons removed as requested */}
+          </div>
+        </TooltipProvider>
         {/* Right section: Placeholder to balance the back button */}
         {/* Adjusted width slightly as two icons were removed */}
         <div className="w-10 flex-shrink-0"></div> {/* Placeholder div */}
@@ -307,21 +372,47 @@ function ArticleView() {
         ref={contentRef}
         className="max-w-[718px] mx-auto w-full pt-12 sm:pt-16 pb-16 sm:pb-24"
       >
-        {/* Article Title and Byline - Restored and centered */}
-        {/* Added px-40 to align with the inner content padding */}
-        <div className="text-center mb-10 md:mb-12 px-[40px]">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 mb-3 tracking-tight leading-tight">
+        {/* Article Title */}
+        <div className="text-center mb-3 px-[40px]">
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 tracking-tight leading-tight">
             {article.title}
           </h1>
-          {article.byline && (
-            <p className="text-md text-gray-500">{article.byline}</p>
+        </div>
+
+        {/* Byline, Source URL, Reading Time, and View Original Link */}
+        <div className="text-center text-sm text-gray-500 mb-10 md:mb-12 px-[40px]">
+          {article.byline && <span className="mr-2">By {article.byline}</span>}
+          {article.byline && article.url && <span className="mr-2">·</span>}
+          {article.url && (
+            <span className="mr-2">{getBaseUrl(article.url)}</span>
+          )}
+          {(article.byline || article.url) &&
+            (article.content || article.excerpt) && (
+              <span className="mr-2">·</span>
+            )}
+          {(article.content || article.excerpt) && (
+            <span>
+              {calculateReadingTime(article.content || article.excerpt)}
+            </span>
+          )}
+          {article.url && (
+            <div className="mt-3">
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center text-orange-500 hover:text-orange-600 transition-colors"
+              >
+                View Original
+                <ExternalLink size={16} className="ml-1" />
+              </a>
+            </div>
           )}
         </div>
 
         {/* Main Article content */}
-        {/* Apply Medium-style typography with improved prose classes */}
         <div
-          className="max-w-none text-left px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:text-green-600 prose-a:no-underline hover:prose-a:underline prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-green-200 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
+          className="max-w-none text-left px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-orange-500 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
       </div>
