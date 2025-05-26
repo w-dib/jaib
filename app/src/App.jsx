@@ -17,6 +17,7 @@ import ArchivesView from "./components/views/ArchivesView";
 import ArticleView from "./components/views/ArticleView";
 import SaveArticleHandler from "./components/views/SaveArticleHandler";
 import { LandingPage } from "./components/LandingPage";
+import LogoutHandler from "./components/views/LogoutHandler";
 
 function App() {
   return (
@@ -97,6 +98,7 @@ function AppLayout() {
         />
         <Route path="/article/:id" element={<ArticleView />} />
         <Route path="/save-article" element={<SaveArticleHandler />} />
+        <Route path="/logout" element={<LogoutHandler />} />
       </Routes>
     </div>
   );

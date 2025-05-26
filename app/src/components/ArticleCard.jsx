@@ -4,7 +4,6 @@ import {
   MoreHorizontal,
   Trash,
   Share2,
-  Image,
   Star,
   BookDown,
   BookUp,
@@ -45,6 +44,13 @@ function ArticleCard({
   const [isFavorited, setIsFavorited] = useState(article.is_favorite);
   const [isArchived, setIsArchived] = useState(article.is_read);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // Added state for delete dialog
+
+  // Define orange shades for the placeholder
+  const orangeShades = [
+    "bg-orange-100 text-orange-600",
+    "bg-orange-200 text-orange-700",
+    "bg-orange-300 text-orange-800",
+  ];
 
   // Sync local state with prop changes
   React.useEffect(() => {
@@ -307,7 +313,27 @@ function ArticleCard({
             />
           </>
         ) : (
-          <div className="w-full h-full bg-orange-100"></div>
+          (() => {
+            const firstLetter = article.title
+              ? article.title[0].toUpperCase()
+              : "J"; // Default to 'J' if no title
+            // Pseudo-randomly select a shade based on article ID to keep it consistent
+            // Ensure article.id is a number and shades array is not empty
+            const shadeIndex =
+              typeof article.id === "number" && orangeShades.length > 0
+                ? article.id % orangeShades.length
+                : 0;
+            const selectedShadeClass =
+              orangeShades[shadeIndex] || orangeShades[0];
+
+            return (
+              <div
+                className={`w-full h-full flex flex-col items-center justify-center ${selectedShadeClass}`}
+              >
+                <span className="text-6xl font-bold">{firstLetter}</span>
+              </div>
+            );
+          })()
         )}
       </div>
 
