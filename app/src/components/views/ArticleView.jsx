@@ -365,7 +365,7 @@ function ArticleView() {
       {/* Added ref here for scroll height measurement */}
       <div
         ref={contentRef}
-        className="max-w-[718px] mx-auto w-full pt-12 sm:pt-16 pb-16 sm:pb-24"
+        className="max-w-[718px] mx-auto w-full pt-2 sm:pt-16 pb-16 sm:pb-24"
       >
         {/* Article Title */}
         <div className="text-center mb-3 px-4 sm:px-[40px]">

@@ -70,7 +70,7 @@ function AppLayout() {
           onArticleAdded={triggerArticleRefresh}
         />
       )}
-      {user && <PocketImportBanner />}
+      {user && isMainViewWithNavbar && <PocketImportBanner />}
 
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
