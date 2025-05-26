@@ -368,14 +368,14 @@ function ArticleView() {
         className="max-w-[718px] mx-auto w-full pt-12 sm:pt-16 pb-16 sm:pb-24"
       >
         {/* Article Title */}
-        <div className="text-center mb-3 px-[40px]">
+        <div className="text-center mb-3 px-4 sm:px-[40px]">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 tracking-tight leading-tight">
             {article.title}
           </h1>
         </div>
 
         {/* Byline, Source URL, Reading Time, and View Original Link */}
-        <div className="text-center text-sm text-gray-500 mb-10 md:mb-12 px-[40px]">
+        <div className="text-center text-sm text-gray-500 mb-10 md:mb-12 sm:px-[40px]">
           {article.byline && <span className="mr-2">By {article.byline}</span>}
           {article.byline && article.url && <span className="mr-2">·</span>}
           {article.url && (
@@ -407,7 +407,7 @@ function ArticleView() {
 
         {/* Main Article content */}
         <div
-          className="max-w-none text-left px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-orange-500 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
+          className="max-w-none text-left px-4 sm:px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-orange-500 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
       </div>
