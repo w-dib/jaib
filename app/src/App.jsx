@@ -18,6 +18,7 @@ import ArticleView from "./components/views/ArticleView";
 import SaveArticleHandler from "./components/views/SaveArticleHandler";
 import { LandingPage } from "./components/LandingPage";
 import LogoutHandler from "./components/views/LogoutHandler";
+import PocketImportBanner from "./components/PocketImportBanner";
 
 function App() {
   return (
@@ -40,7 +41,7 @@ function AppLayout() {
 
   const showNavbarPaths = ["/", "/favorites", "/archives"];
 
-  const showMainNavbar = showNavbarPaths.includes(location.pathname);
+  const isMainViewWithNavbar = showNavbarPaths.includes(location.pathname);
 
   if (!user) {
     if (location.pathname.startsWith("/save-article")) {
@@ -62,13 +63,14 @@ function AppLayout() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {showMainNavbar && (
+      {isMainViewWithNavbar && (
         <Navbar
           user={user}
           onSignOut={signOut}
           onArticleAdded={triggerArticleRefresh}
         />
       )}
+      {user && <PocketImportBanner />}
 
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
@@ -105,7 +107,7 @@ function AppLayout() {
 }
 
 function ViewWrapper({ children }) {
-  return <div className="flex-grow p-4">{children}</div>;
+  return <div className="flex-grow">{children}</div>;
 }
 
 function Home() {
