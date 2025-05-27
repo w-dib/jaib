@@ -405,6 +405,17 @@ function ArticleView() {
           )}
         </div>
 
+        {/* Lead Image - Added Here */}
+        {article.lead_image_url && (
+          <div className="px-4 sm:px-[40px] mb-8 md:mb-10">
+            <img
+              src={article.lead_image_url}
+              alt={article.title || "Article lead image"}
+              className="w-full h-auto object-cover rounded-lg shadow-md"
+            />
+          </div>
+        )}
+
         {/* Main Article content */}
         <div
           className="max-w-none text-left px-4 sm:px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-orange-500 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
