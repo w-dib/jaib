@@ -60,7 +60,7 @@ function ArticleView() {
 
       const { data, error } = await supabase
         .from("articles")
-        .select("*")
+        .select("*, last_read_scroll_percentage")
         .eq("id", id)
         .single();
 
@@ -73,6 +73,27 @@ function ArticleView() {
         // Initialize local state from fetched article data
         setIsFavorited(data?.is_favorite || false);
         setIsRead(data?.is_read || false);
+
+        // Apply saved scroll position
+        if (
+          data?.last_read_scroll_percentage &&
+          data.last_read_scroll_percentage > 0 &&
+          data.last_read_scroll_percentage < 100
+        ) {
+          // Apply after a short delay to allow content to render and height to be calculated
+          setTimeout(() => {
+            if (contentRef.current) {
+              // Ensure contentRef is available
+              const scrollableHeight =
+                document.body.scrollHeight - window.innerHeight;
+              if (scrollableHeight > 0) {
+                const targetScrollTop =
+                  scrollableHeight * (data.last_read_scroll_percentage / 100);
+                window.scrollTo({ top: targetScrollTop, behavior: "auto" }); // 'auto' for instant jump
+              }
+            }
+          }, 300); // Adjust delay if necessary
+        }
       }
       setLoading(false);
     };
@@ -99,6 +120,48 @@ function ArticleView() {
       window.removeEventListener("scroll", handleWindowScroll);
     };
   }, [article]); // Re-run effect when article content loads
+
+  // Save scroll position on unmount
+  useEffect(() => {
+    return () => {
+      // Only save if article is loaded, user exists, and progress is meaningful
+      if (
+        user &&
+        article &&
+        article.id &&
+        readingProgress > 0 &&
+        readingProgress < 99
+      ) {
+        // Avoid saving 100% if they finished
+        const savePosition = async () => {
+          try {
+            const { error: updateError } = await supabase
+              .from("articles")
+              .update({ last_read_scroll_percentage: readingProgress })
+              .eq("id", article.id)
+              .eq("user_id", user.id); // Ensure user owns the article, RLS also protects this
+
+            if (updateError) {
+              console.error("Error saving scroll position:", updateError);
+            } else {
+              console.log(
+                "Scroll position saved:",
+                readingProgress,
+                "for article ID:",
+                article.id
+              );
+            }
+          } catch (e) {
+            console.error("Exception while saving scroll position:", e);
+          }
+        };
+        // Check if navigator.sendBeacon is available for more reliable background sync
+        // For simplicity now, we'll do a direct async call.
+        // In a real app, consider navigator.sendBeacon for unmount tasks if the save must be guaranteed.
+        savePosition();
+      }
+    };
+  }, [user, article, readingProgress, supabase]); // Dependencies for the cleanup effect
 
   // Recalculate progress when article loads
   useEffect(() => {
