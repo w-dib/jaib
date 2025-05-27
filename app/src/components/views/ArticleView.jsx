@@ -452,7 +452,7 @@ function ArticleView() {
         className="max-w-[718px] mx-auto w-full pt-2 sm:pt-16 pb-16 sm:pb-24"
       >
         {/* Article Title */}
-        <div className="text-center mb-3 px-4 sm:px-[40px]">
+        <div className="text-center mb-3 sm:px-[40px]">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 tracking-tight leading-tight">
             {article.title}
           </h1>
@@ -491,7 +491,7 @@ function ArticleView() {
 
         {/* Lead Image - Added Here */}
         {article.lead_image_url && (
-          <div className="px-4 sm:px-[40px] mb-8 md:mb-10">
+          <div className="sm:px-[40px] mb-8 md:mb-10">
             <img
               src={article.lead_image_url}
               alt={article.title || "Article lead image"}
@@ -502,7 +502,7 @@ function ArticleView() {
 
         {/* Main Article content */}
         <div
-          className="max-w-none text-left px-4 sm:px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-orange-500 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
+          className="max-w-none text-left sm:px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-orange-500 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
       </div>

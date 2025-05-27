@@ -107,7 +107,7 @@ function AppLayout() {
 }
 
 function ViewWrapper({ children }) {
-  return <div className="flex-grow">{children}</div>;
+  return <div className="flex-grow pt-[72px] px-4">{children}</div>;
 }
 
 function Home() {
