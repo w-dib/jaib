@@ -157,7 +157,6 @@ function ArticleCard({
   // Get image URL from content, prioritizing a direct lead_image_url or image_url prop if available
   const imageUrl =
     article.lead_image_url ||
-    article.image_url ||
     extractFirstImageUrl(article.content, article.url);
 
   // Reset image state when URL changes

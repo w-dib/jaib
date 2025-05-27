@@ -60,6 +60,7 @@ function AddUrlPrompt({ isOpen, onClose, onAdd }) {
         excerpt: parsedArticle.excerpt,
         byline: parsedArticle.byline,
         length: parsedArticle.length,
+        lead_image_url: parsedArticle.lead_image_url,
         user_id: user.id,
         // saved_at, is_favorite, is_read have default values in DB
       });
