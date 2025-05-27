@@ -27,38 +27,42 @@ chrome.runtime.onInstalled.addListener(() => {
   // Remove all existing context menus for this extension to prevent duplicates during development
   chrome.contextMenus.removeAll(() => {
     chrome.contextMenus.create({
-      id: "actionSaveToJaib",
-      title: "Save to Jaib",
-      contexts: ["action"],
+      id: "saveToJaib",
+      title: "Save page to Jaib",
+      contexts: ["all"],
     });
 
     chrome.contextMenus.create({
-      id: "actionOpenSaves",
-      title: "Open your Saves",
-      contexts: ["action"],
+      id: "openJaibSaves",
+      title: "Open Jaib Saves",
+      contexts: ["all"],
     });
 
     chrome.contextMenus.create({
       id: "actionLogout",
-      title: "Log out",
+      title: "Log out (from Jaib)",
       contexts: ["action"],
     });
-    console.log("Action context menus created.");
+    console.log("Context menus created/updated.");
   });
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   switch (info.menuItemId) {
-    case "actionSaveToJaib":
-      // 'tab' might be undefined if the context menu is clicked from the toolbar action context itself.
-      // We need to get the active tab in the current window.
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs && tabs.length > 0) {
-          saveCurrentPage(tabs[0]);
-        }
-      });
+    case "saveToJaib":
+      if (tab && tab.id) {
+        saveCurrentPage(tab);
+      } else {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          if (tabs && tabs.length > 0) {
+            saveCurrentPage(tabs[0]);
+          } else {
+            console.error("Jaib: No active tab found to save.");
+          }
+        });
+      }
       break;
-    case "actionOpenSaves":
+    case "openJaibSaves":
       chrome.tabs.create({ url: "https://jaib.waliddib.com/" });
       break;
     case "actionLogout":

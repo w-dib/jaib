@@ -73,6 +73,7 @@ function SaveArticleHandler() {
                 excerpt: parsedArticle.excerpt,
                 byline: parsedArticle.byline,
                 length: parsedArticle.length,
+                lead_image_url: parsedArticle.lead_image_url,
               },
             ])
             .select();
