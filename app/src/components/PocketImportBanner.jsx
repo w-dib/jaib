@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
-import { UploadCloud, X, AlertTriangle } from "lucide-react";
+import { UploadCloud, X } from "lucide-react";
 
 function PocketImportBanner() {
   const [showUploadArea, setShowUploadArea] = useState(false);
@@ -76,21 +76,16 @@ function PocketImportBanner() {
   } else if (!showUploadArea) {
     return (
       <div
-        className="bg-orange-100 text-orange-500 p-4 my-4 rounded-md flex items-center justify-between shadow-md w-full"
+        className="bg-orange-100 text-orange-500 p-4 my-4 rounded-md flex items-center justify-between shadow-md max-w-max mx-auto"
         role="alert"
       >
         <div
           className="flex-grow flex items-center cursor-pointer mr-3"
           onClick={() => setShowUploadArea(true)}
         >
-          <AlertTriangle
-            size={20}
-            className="mr-3 text-orange-500 flex-shrink-0"
-          />
           <p className="text-sm">
-            Pocket is shutting down ·{" "}
-            <span className="font-bold">Click here</span> to import your Pocket
-            articles to continue enjoying them with Jaib.
+            <span className="font-bold">Click here</span> to import your URLs
+            from Pocket.
           </p>
         </div>
         <button

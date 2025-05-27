@@ -11,6 +11,7 @@ import {
   BookUp, // For Archive (if read)
   Trash2, // For Delete
   ExternalLink, // Added for View Original link
+  Tag, // IMPORTED: For Tagging
 } from "lucide-react";
 
 // Import ShadCN Dialog components with corrected path
@@ -32,6 +33,7 @@ import {
   TooltipTrigger,
 } from "../../../components/ui/tooltip"; // Added Tooltip imports
 import ArticleViewSkeleton from "../ArticleViewSkeleton"; // Added import for skeleton
+import TaggingDialog from "./TaggingDialog"; // IMPORTED: For Tagging Dialog
 
 function ArticleView() {
   const { id } = useParams();
@@ -47,6 +49,7 @@ function ArticleView() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [isRead, setIsRead] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isTaggingDialogOpen, setIsTaggingDialogOpen] = useState(false); // ADDED: State for tagging dialog
 
   useEffect(() => {
     const fetchArticle = async () => {
@@ -337,6 +340,24 @@ function ArticleView() {
             </Tooltip>
           </TooltipProvider>
 
+          {/* Tag Button - ADDED */}
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setIsTaggingDialogOpen(true)}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  aria-label="Tag article"
+                >
+                  <Tag size={iconSize} className="text-gray-600" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Tag article</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           {/* Highlight/Tag Button (Placeholder) */}
           <TooltipProvider delayDuration={200}>
             <Tooltip>
@@ -485,6 +506,15 @@ function ArticleView() {
           dangerouslySetInnerHTML={{ __html: article.content }}
         />
       </div>
+      {/* Tagging Dialog - ADDED */}
+      {article && (
+        <TaggingDialog
+          isOpen={isTaggingDialogOpen}
+          onOpenChange={setIsTaggingDialogOpen}
+          articleId={article.id}
+          userId={user?.id}
+        />
+      )}
     </div>
   );
 }
