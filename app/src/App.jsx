@@ -20,6 +20,7 @@ import { LandingPage } from "./components/LandingPage";
 import LogoutHandler from "./components/views/LogoutHandler";
 import PocketImportBanner from "./components/PocketImportBanner";
 import TagsPage from "./pages/TagsPage";
+import SharedArticleHandler from "./components/views/SharedArticleHandler";
 
 function App() {
   return (
@@ -102,6 +103,7 @@ function AppLayout() {
         <Route path="/tags" element={<TagsPage />} />
         <Route path="/article/:id" element={<ArticleView />} />
         <Route path="/save-article" element={<SaveArticleHandler />} />
+        <Route path="/save-article-shared" element={<SharedArticleHandler />} />
         <Route path="/logout" element={<LogoutHandler />} />
       </Routes>
     </div>
