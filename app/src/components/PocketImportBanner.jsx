@@ -1,19 +1,41 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
-import { UploadCloud, X } from "lucide-react";
+import { UploadCloud, X, Loader2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../contexts/AuthContext";
 
 function PocketImportBanner() {
   const [showUploadArea, setShowUploadArea] = useState(false);
   const [fileName, setFileName] = useState(null);
-  const [extractedUrls, setExtractedUrls] = useState([]);
+  const [extractedArticlesData, setExtractedArticlesData] = useState([]);
   const [parseError, setParseError] = useState(null);
   const [bannerVisible, setBannerVisible] = useState(true);
 
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importError, setImportError] = useState(null);
+  const [currentImportStatusMessage, setCurrentImportStatusMessage] =
+    useState("");
+  const [successfullyImportedCount, setSuccessfullyImportedCount] = useState(0);
+  const [failedImportDetails, setFailedImportDetails] = useState([]);
+  const [skippedImportDetails, setSkippedImportDetails] = useState([]);
+
+  const navigate = useNavigate();
+  const { user } = useAuth();
+
   const onDrop = useCallback((acceptedFiles) => {
     setParseError(null);
-    setExtractedUrls([]);
+    setExtractedArticlesData([]);
     setFileName(null);
+    setIsImporting(false);
+    setImportProgress(0);
+    setImportError(null);
+    setCurrentImportStatusMessage("");
+    setSuccessfullyImportedCount(0);
+    setFailedImportDetails([]);
+    setSkippedImportDetails([]);
 
     if (acceptedFiles && acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
@@ -26,25 +48,50 @@ function PocketImportBanner() {
           if (results.errors.length > 0) {
             console.error("Parsing errors:", results.errors);
             setParseError(
-              "Error parsing CSV. Make sure it's a valid Pocket export."
+              "Error parsing CSV. Make sure it's a valid Pocket export with 'url' and 'status' columns."
             );
             return;
           }
-          if (!results.meta.fields || !results.meta.fields.includes("url")) {
-            console.error("CSV missing 'url' column");
-            setParseError("CSV file must contain a 'url' column.");
+          const requiredFields = ["url", "status"];
+          const missingFields = requiredFields.filter(
+            (field) =>
+              !results.meta.fields || !results.meta.fields.includes(field)
+          );
+
+          if (missingFields.length > 0) {
+            console.error(
+              `CSV missing required columns: ${missingFields.join(", ")}`
+            );
+            setParseError(
+              `CSV file must contain the following columns: ${requiredFields.join(
+                ", "
+              )}. Missing: ${missingFields.join(", ")}.`
+            );
             return;
           }
-          const urls = results.data
-            .map((row) => row.url)
+
+          const articles = results.data
+            .map((row, index) => ({
+              url: row.url,
+              status: row.status,
+              originalIndex: index,
+            }))
             .filter(
-              (url) => url && typeof url === "string" && url.trim() !== ""
+              (article) =>
+                article.url &&
+                typeof article.url === "string" &&
+                article.url.trim() !== "" &&
+                article.status &&
+                typeof article.status === "string" &&
+                (article.status.toLowerCase() === "archive" ||
+                  article.status.toLowerCase() === "unread")
             );
-          setExtractedUrls(urls);
-          // For now, we'll log them. Later, you can trigger the import process.
-          console.log("Extracted URLs:", urls);
-          if (urls.length === 0) {
-            setParseError("No URLs found in the 'url' column of the CSV.");
+
+          setExtractedArticlesData(articles);
+          if (articles.length === 0) {
+            setParseError(
+              "No valid articles found in the CSV. Check for 'url' and 'status' (archive/unread) columns and valid entries."
+            );
           }
         },
         error: (error) => {
@@ -65,8 +112,228 @@ function PocketImportBanner() {
 
   const removeFile = () => {
     setFileName(null);
-    setExtractedUrls([]);
+    setExtractedArticlesData([]);
     setParseError(null);
+    setIsImporting(false);
+    setImportProgress(0);
+    setImportError(null);
+    setCurrentImportStatusMessage("");
+    setSuccessfullyImportedCount(0);
+    setFailedImportDetails([]);
+    setSkippedImportDetails([]);
+  };
+
+  const handleStartImport = async () => {
+    if (!user || !extractedArticlesData.length) {
+      setImportError("User not authenticated or no articles to import.");
+      return;
+    }
+
+    setIsImporting(true);
+    setImportProgress(0);
+    setImportError(null);
+    setCurrentImportStatusMessage("Starting import...");
+    setSuccessfullyImportedCount(0);
+    setFailedImportDetails([]);
+    setSkippedImportDetails([]);
+    let currentSuccessCount = 0;
+    let currentFailDetails = [];
+    let currentSkippedDetails = [];
+
+    for (let i = 0; i < extractedArticlesData.length; i++) {
+      const articleData = extractedArticlesData[i];
+      const progress = ((i + 1) / extractedArticlesData.length) * 100;
+      setCurrentImportStatusMessage(
+        `Importing article ${i + 1} of ${
+          extractedArticlesData.length
+        }: ${articleData.url.substring(0, 50)}...`
+      );
+      setImportProgress(progress);
+
+      try {
+        // Step 1: Invoke Edge Function
+        const { data: functionResponse, error: functionError } =
+          await supabase.functions.invoke("fetch-article-data", {
+            body: { url: articleData.url.trim() },
+          });
+
+        if (functionError) {
+          console.error(
+            `Edge function error for ${articleData.url}:`,
+            functionError
+          );
+          throw {
+            type: "function",
+            message:
+              functionError.message ||
+              "Error fetching article data from edge function.",
+          };
+        }
+        if (functionResponse.error) {
+          console.error(
+            `Error from Edge function logic for ${articleData.url}:`,
+            functionResponse.error
+          );
+          throw { type: "function_logic", message: functionResponse.error };
+        }
+
+        const parsedArticle = functionResponse;
+        const is_read = articleData.status.toLowerCase() === "archive";
+
+        // Step 2: Save to 'articles' table
+        const { error: insertError } = await supabase.from("articles").insert({
+          url: parsedArticle.url,
+          title: parsedArticle.title || "Untitled", // Ensure title has a fallback
+          content: parsedArticle.content,
+          excerpt: parsedArticle.excerpt,
+          byline: parsedArticle.byline,
+          length: parsedArticle.length,
+          lead_image_url: parsedArticle.lead_image_url,
+          user_id: user.id,
+          is_read: is_read,
+          // site_name will be populated if returned by edge function, or null
+          site_name: parsedArticle.siteName || parsedArticle.site_name || null,
+        });
+
+        if (insertError) {
+          console.error(
+            `Database insert error for ${parsedArticle.url}:`,
+            insertError
+          );
+          if (insertError.code === "23505") {
+            throw {
+              type: "duplicate",
+              message: "Article already exists in your saves.",
+            };
+          } else {
+            throw {
+              type: "database",
+              message:
+                insertError.message || "Error saving article to database.",
+            };
+          }
+        }
+        currentSuccessCount++;
+        setSuccessfullyImportedCount((prev) => prev + 1);
+      } catch (error) {
+        console.error(`Failed to process ${articleData.url}:`, error);
+
+        if (error.type === "duplicate") {
+          currentSkippedDetails.push({
+            url: articleData.url,
+            originalIndex: articleData.originalIndex,
+            message: error.message,
+          });
+        } else {
+          let userFriendlyError =
+            "An issue occurred while processing this article.";
+          if (error && error.message) {
+            const msg = error.message.toLowerCase();
+            // Check for specific Edge Function execution/fetch errors first
+            if (error.type === "function" || error.type === "function_logic") {
+              if (
+                msg.includes("status code") ||
+                msg.includes("failed to fetch") ||
+                msg.includes("http error")
+              ) {
+                userFriendlyError =
+                  "Could not retrieve article. The website may be unavailable or blocking access.";
+              } else if (msg.includes("invalid url")) {
+                userFriendlyError =
+                  "The URL provided to the processing service was invalid.";
+              } else if (
+                msg.includes("failed to parse") ||
+                msg.includes("readability")
+              ) {
+                userFriendlyError =
+                  "Could not extract content. The article format might be incompatible.";
+              } else {
+                userFriendlyError =
+                  "Article processing failed. Please check the URL or try again later."; // More generic for other function errors
+              }
+            } else if (error.type === "database") {
+              // Database errors other than duplicate
+              userFriendlyError =
+                "Failed to save the article to the database after processing.";
+            }
+            // The existing detailed HTTP status code checks can remain as more specific fallbacks if the above are not met
+            // but the primary error.type should guide the initial message for function/database issues.
+            // This means the detailed HTTP status checks will likely be hit if error.type is not set (e.g. a direct network error before even hitting the function)
+            else if (
+              msg.includes("http error") ||
+              msg.includes("status: 404") ||
+              msg.includes("not found")
+            ) {
+              userFriendlyError =
+                "Article not found. The link may be broken or the page removed.";
+            } else if (
+              msg.includes("status: 403") ||
+              msg.includes("forbidden")
+            ) {
+              userFriendlyError =
+                "Access denied. This article might be private or behind a paywall.";
+            } else if (
+              msg.includes("status: 500") ||
+              msg.includes("status: 502") ||
+              msg.includes("status: 503") ||
+              msg.includes("status: 504") ||
+              msg.includes("server error")
+            ) {
+              userFriendlyError =
+                "The article's website had a problem. You could try again later.";
+            } else if (msg.includes("timeout")) {
+              userFriendlyError =
+                "Timed out trying to reach the article. The website might be slow or offline.";
+            } else {
+              userFriendlyError =
+                error.message || "An unknown processing error occurred.";
+            }
+          }
+          currentFailDetails.push({
+            url: articleData.url,
+            originalIndex: articleData.originalIndex,
+            error: userFriendlyError,
+          });
+        }
+      }
+    }
+    setFailedImportDetails(currentFailDetails);
+    setSkippedImportDetails(currentSkippedDetails);
+
+    setCurrentImportStatusMessage("Import complete!");
+    setImportProgress(100);
+    // setIsImporting(false); // Keep true to show final stats until redirect
+
+    // Wait a bit to show final stats then redirect
+    setTimeout(() => {
+      setIsImporting(false); // Now allow UI to show final summary before redirect
+      // Potentially clear file name and extracted data after successful import and redirect
+      // setFileName(null);
+      // setExtractedArticlesData([]);
+      if (currentFailDetails.length === 0 && !importError) {
+        // only redirect if all successful
+        // navigate("/"); // TODO: Decide on redirect behavior based on success/failure
+      }
+      // If we want to always navigate or based on some condition:
+      // For now, let's only navigate if there are no overall errors and some success
+      if (!importError && currentSuccessCount > 0) {
+        // Consider adding a small delay *before* navigating to let user see final message
+        setTimeout(() => navigate("/"), 1500);
+      } else if (
+        !importError &&
+        currentSuccessCount === 0 &&
+        currentFailDetails.length > 0
+      ) {
+        // All failed, maybe don't navigate or show a stronger error
+        setCurrentImportStatusMessage(
+          "All articles failed to import. Please check details."
+        );
+      } else if (importError) {
+        setCurrentImportStatusMessage(
+          `Import process encountered an error: ${importError}`
+        );
+      }
+    }, 1000); // Delay before setting isImporting to false and deciding on navigation
   };
 
   if (!bannerVisible) {
@@ -114,80 +381,174 @@ function PocketImportBanner() {
             Import Pocket Articles
           </h2>
           <button
-            onClick={() => setShowUploadArea(false)}
-            className="text-gray-500 hover:text-gray-700"
+            onClick={() => {
+              if (isImporting) return;
+              setShowUploadArea(false);
+            }}
+            className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
             aria-label="Close import area"
+            disabled={isImporting}
           >
             <X size={24} />
           </button>
         </div>
 
-        <div
-          {...getRootProps()}
-          className={`p-8 border-2 border-dashed rounded-md text-center cursor-pointer
-                      ${
-                        isDragActive
-                          ? "border-orange-500 bg-orange-50"
-                          : "border-gray-300 hover:border-gray-400"
-                      }
-                      transition-colors`}
-        >
-          <input {...getInputProps()} />
-          <UploadCloud size={48} className="mx-auto text-gray-400 mb-3" />
-          {fileName ? (
-            <div>
-              <p className="text-gray-700">File: {fileName}</p>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeFile();
-                }}
-                className="mt-2 text-sm text-red-500 hover:text-red-700"
-              >
-                Remove file
-              </button>
+        {!isImporting && (
+          <>
+            <div
+              {...getRootProps()}
+              className={`p-8 border-2 border-dashed rounded-md text-center cursor-pointer
+                          ${
+                            isDragActive
+                              ? "border-orange-500 bg-orange-50"
+                              : "border-gray-300 hover:border-gray-400"
+                          }
+                          transition-colors ${
+                            isImporting ? "opacity-50 cursor-not-allowed" : ""
+                          }`}
+            >
+              <input {...getInputProps()} disabled={isImporting} />
+              <UploadCloud size={48} className="mx-auto text-gray-400 mb-3" />
+              {fileName ? (
+                <div>
+                  <p className="text-gray-700">File: {fileName}</p>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFile();
+                    }}
+                    className="mt-2 text-sm text-red-500 hover:text-red-700"
+                    disabled={isImporting}
+                  >
+                    Remove file
+                  </button>
+                </div>
+              ) : isDragActive ? (
+                <p className="text-orange-600">Drop the .csv file here ...</p>
+              ) : (
+                <p className="text-gray-500">
+                  Drop your Pocket .csv file here, or click to select.
+                </p>
+              )}
             </div>
-          ) : isDragActive ? (
-            <p className="text-orange-600">Drop the .csv file here ...</p>
-          ) : (
-            <p className="text-gray-500">
-              Drop your Pocket .csv file here, or click to select.
-            </p>
-          )}
-        </div>
 
-        {parseError && (
-          <p className="mt-3 text-sm text-red-600">{parseError}</p>
+            {parseError && (
+              <p className="mt-3 text-sm text-red-600">{parseError}</p>
+            )}
+          </>
         )}
 
-        {extractedUrls.length > 0 && (
-          <div className="mt-4">
-            <p className="text-sm text-green-600">
-              Successfully extracted {extractedUrls.length} URL(s). Ready for
-              import.
+        {extractedArticlesData.length > 0 && !isImporting && !parseError && (
+          <div className="mt-6 text-center">
+            <p className="text-lg text-green-700 mb-2">
+              Found {extractedArticlesData.length} article(s) ready for import.
             </p>
-            {/* Later, you can add a button here to start the actual import to Supabase */}
-            {/* 
-            <ul className="mt-2 max-h-40 overflow-y-auto text-xs text-gray-500">
-              {extractedUrls.map((url, index) => <li key={index}>{url}</li>)}
-            </ul> 
-            */}
+            <button
+              onClick={handleStartImport}
+              className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-md text-lg shadow-md transition-colors flex items-center justify-center mx-auto"
+            >
+              Start Import
+            </button>
           </div>
         )}
 
-        <div className="mt-6 text-sm text-center">
-          <p className="text-gray-600">
-            Not sure how to export your pocket articles?{" "}
-            <a
-              href="https://support.mozilla.org/en-US/kb/future-of-pocket#w_how-to-export-your-saved-articles"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-orange-500 hover:text-orange-600 underline"
-            >
-              Click here.
-            </a>
-          </p>
-        </div>
+        {isImporting && (
+          <div className="mt-6 w-full">
+            <p className="text-center text-orange-600 mb-2 font-semibold">
+              {currentImportStatusMessage}
+            </p>
+            <div className="w-full bg-gray-200 rounded-full h-4 mb-2 overflow-hidden">
+              <div
+                className="bg-orange-500 h-4 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${importProgress}%` }}
+              ></div>
+            </div>
+            <p className="text-center text-sm text-gray-500">
+              {importProgress.toFixed(0)}%
+            </p>
+          </div>
+        )}
+
+        {!isImporting &&
+          (successfullyImportedCount > 0 ||
+            failedImportDetails.length > 0 ||
+            skippedImportDetails.length > 0) && (
+            <div className="mt-6 text-sm">
+              {successfullyImportedCount > 0 && (
+                <p className="text-green-600">
+                  Successfully imported {successfullyImportedCount} article(s).
+                </p>
+              )}
+              {skippedImportDetails.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-blue-600">
+                    Skipped {skippedImportDetails.length} article(s) (already
+                    exist):
+                  </p>
+                  <ul className="list-disc list-inside max-h-32 overflow-y-auto text-xs text-blue-500">
+                    {skippedImportDetails.map((skip, index) => (
+                      <li key={index}>
+                        Original row {skip.originalIndex + 2}:{" "}
+                        <a
+                          href={skip.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {skip.url.substring(0, 50)}...
+                        </a>{" "}
+                        - {skip.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {failedImportDetails.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-red-600">
+                    Failed to import {failedImportDetails.length} article(s):
+                  </p>
+                  <ul className="list-disc list-inside max-h-32 overflow-y-auto text-xs text-red-500">
+                    {failedImportDetails.map((fail, index) => (
+                      <li key={index}>
+                        Original row {fail.originalIndex + 2}:{" "}
+                        <a
+                          href={fail.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          {fail.url.substring(0, 50)}...
+                        </a>{" "}
+                        - {fail.error}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {importError && (
+                <p className="mt-2 text-red-600">
+                  Overall import error: {importError}
+                </p>
+              )}
+            </div>
+          )}
+
+        {!isImporting && (
+          <div className="mt-6 text-sm text-center">
+            <p className="text-gray-600">
+              Not sure how to export your pocket articles?{" "}
+              <a
+                href="https://support.mozilla.org/en-US/kb/future-of-pocket#w_how-to-export-your-saved-articles"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-orange-500 hover:text-orange-600 underline"
+              >
+                Click here.
+              </a>
+            </p>
+          </div>
+        )}
       </div>
     );
   }
