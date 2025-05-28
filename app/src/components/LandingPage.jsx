@@ -3,6 +3,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Wand2, Mail } from "lucide-react";
 import icon48 from "../assets/icon48.png";
 import { useState } from "react";
+import { supabase } from "../lib/supabase";
 
 export function LandingPage() {
   const { signInWithMagicLink } = useAuth();
@@ -23,6 +24,36 @@ export function LandingPage() {
       console.error(error);
     } else {
       setShowSuccess(true);
+    }
+  };
+
+  const handleGitHubLogin = async () => {
+    setIsLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      console.error("Error signing in with GitHub:", error.message);
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        // Optional: specify scopes if different from Supabase provider defaults
+        // scopes: 'email profile openid',
+      },
+    });
+    if (error) {
+      console.error("Error signing in with Google:", error.message);
+      setIsLoading(false);
     }
   };
 
@@ -86,26 +117,46 @@ export function LandingPage() {
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => alert("Google login coming soon!")}
+              onClick={handleGoogleLogin}
+              disabled={isLoading}
             >
-              <img
-                src="https://www.google.com/favicon.ico"
-                alt="Google"
-                className="w-4 h-4 mr-2"
-              />
-              Continue with Google
+              {isLoading && !email ? (
+                <div className="flex items-center justify-center">
+                  <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mr-2" />
+                  Redirecting to Google...
+                </div>
+              ) : (
+                <>
+                  <img
+                    src="https://www.google.com/favicon.ico"
+                    alt="Google"
+                    className="w-4 h-4 mr-2"
+                  />
+                  Continue with Google
+                </>
+              )}
             </Button>
             <Button
               variant="outline"
               className="w-full"
-              onClick={() => alert("GitHub login coming soon!")}
+              onClick={handleGitHubLogin}
+              disabled={isLoading}
             >
-              <img
-                src="https://github.com/favicon.ico"
-                alt="GitHub"
-                className="w-4 h-4 mr-2"
-              />
-              Continue with GitHub
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin mr-2" />
+                  Redirecting to GitHub...
+                </div>
+              ) : (
+                <>
+                  <img
+                    src="https://github.com/favicon.ico"
+                    alt="GitHub"
+                    className="w-4 h-4 mr-2"
+                  />
+                  Continue with GitHub
+                </>
+              )}
             </Button>
           </div>
 
