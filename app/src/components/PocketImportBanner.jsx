@@ -76,21 +76,28 @@ function PocketImportBanner() {
   } else if (!showUploadArea) {
     return (
       <div
-        className="bg-orange-100 text-orange-500 p-4 my-4 rounded-md flex items-center justify-between shadow-md max-w-max mx-auto"
-        role="alert"
+        className="bg-slate-50 border border-slate-200 text-slate-700 p-3.5 mt-4 rounded-lg flex items-center justify-between shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 max-w-max mx-auto cursor-pointer"
+        role="button"
+        onClick={() => setShowUploadArea(true)}
+        tabIndex={0}
+        onKeyPress={(e) => e.key === "Enter" && setShowUploadArea(true)}
       >
-        <div
-          className="flex-grow flex items-center cursor-pointer mr-3"
-          onClick={() => setShowUploadArea(true)}
-        >
+        <div className="flex items-center">
+          <UploadCloud
+            size={20}
+            className="text-orange-500 mr-3 flex-shrink-0"
+          />
           <p className="text-sm">
-            <span className="font-bold">Click here</span> to import your URLs
-            from Pocket.
+            <span className="font-semibold text-orange-600">Click here</span> to
+            import your URLs from Pocket.
           </p>
         </div>
         <button
-          onClick={() => setBannerVisible(false)}
-          className="text-orange-500 hover:text-orange-700 flex-shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            setBannerVisible(false);
+          }}
+          className="text-slate-400 hover:text-slate-600 ml-3 flex-shrink-0"
           aria-label="Dismiss banner"
         >
           <X size={18} />

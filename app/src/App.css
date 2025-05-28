@@ -160,3 +160,27 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom styles for SVGs within Tailwind Prose */
+.prose svg {
+  display: inline-block; /* Ensure it behaves like an inline element but respects width/height */
+  width: auto; /* Respect the SVG's aspect ratio */
+  height: 1.2em; /* Set height relative to font size, good for icons */
+  margin-left: 0.25em; /* Optional: add some space if it's next to text */
+  margin-right: 0.25em; /* Optional: add some space if it's next to text */
+  vertical-align: middle; /* Align better with surrounding text */
+  max-width: 100%; /* Ensure it doesn't overflow its container if it's a larger SVG */
+  /* Important: Do not set a fixed fill or stroke color here unless you want all SVGs to be the same color.
+     Let the SVG's own attributes or more specific CSS rules determine colors. */
+}
+
+/* More specific rule for SVGs inside heading links, like the example provided */
+.prose h1 svg,
+.prose h2 svg,
+.prose h3 svg,
+.prose h4 svg,
+.prose h5 svg,
+.prose h6 svg {
+  height: 0.8em; /* Slightly smaller for headings to look proportional */
+  margin-left: 0.3em;
+}

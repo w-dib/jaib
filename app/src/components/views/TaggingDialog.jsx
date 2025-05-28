@@ -50,11 +50,21 @@ function TaggingDialog({ isOpen, onOpenChange, articleId, userId }) {
   }, [isOpen, articleId, userId]);
 
   const handleInputChange = (e) => {
-    setInputValue(e.target.value);
+    const value = e.target.value;
+    if (value.endsWith(",")) {
+      const newTag = value.slice(0, -1).trim();
+      if (newTag && !tags.includes(newTag)) {
+        setTags([...tags, newTag]);
+      }
+      setInputValue(""); // Clear input after tag is added
+    } else {
+      setInputValue(value);
+    }
   };
 
   const handleInputKeyDown = (e) => {
-    if (e.key === "," || e.key === "Enter" || e.key === "Tab") {
+    // Comma handling is now in handleInputChange
+    if (e.key === "Enter" || e.key === "Tab") {
       e.preventDefault(); // Prevent default for Tab and Enter
       const newTag = inputValue.trim();
       if (newTag && !tags.includes(newTag)) {
