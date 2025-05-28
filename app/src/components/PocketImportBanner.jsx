@@ -1,10 +1,11 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
-import { UploadCloud, X, Loader2 } from "lucide-react";
+import { UploadCloud, X, Loader2, Gem, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
+import { Button } from "../../components/ui/button";
 
 function PocketImportBanner() {
   const [showUploadArea, setShowUploadArea] = useState(false);
@@ -392,6 +393,97 @@ function PocketImportBanner() {
             <X size={24} />
           </button>
         </div>
+
+        {!isImporting && (
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 mb-6 text-center sm:text-left">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start mb-4">
+              <Zap className="text-orange-500 h-10 w-10 mr-0 sm:mr-4 mb-3 sm:mb-0 flex-shrink-0" />
+              <div>
+                <h3 className="text-xl font-semibold text-orange-700">
+                  Unlock Lightning-Fast Imports & More!
+                </h3>
+                <p className="text-sm text-orange-600 mt-1">
+                  Upgrade to Premium and supercharge your Jaib experience.
+                </p>
+              </div>
+            </div>
+
+            <div className="my-4 text-sm">
+              <div className="hidden sm:grid sm:grid-cols-3 sm:gap-x-4 sm:mb-2">
+                <div className="font-semibold text-slate-700 pb-1">Feature</div>
+                <div className="font-semibold text-slate-700 text-center pb-1">
+                  Free
+                </div>
+                <div className="font-semibold text-orange-600 text-center pb-1">
+                  Premium <Gem size={14} className="inline ml-1 mb-0.5" />
+                </div>
+              </div>
+
+              <div className="space-y-3 sm:space-y-0">
+                <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100">
+                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:pr-2">
+                    Articles per Import
+                  </div>
+                  <div className="text-slate-700 sm:text-center">
+                    <span className="sm:hidden font-normal text-xs text-slate-500">
+                      Free:{" "}
+                    </span>
+                    15
+                  </div>
+                  <div className="text-orange-600 font-semibold sm:text-center">
+                    <span className="sm:hidden font-normal text-xs text-slate-500">
+                      Premium:{" "}
+                    </span>
+                    1,000+
+                  </div>
+                </div>
+
+                <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100">
+                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:pr-2">
+                    Bulk Tagging & Organizing
+                  </div>
+                  <div className="text-slate-400 sm:text-center">
+                    <span className="sm:hidden font-normal text-xs text-slate-500">
+                      Free:{" "}
+                    </span>
+                    ✕
+                  </div>
+                  <div className="text-orange-600 font-semibold sm:text-center">
+                    <span className="sm:hidden font-normal text-xs text-slate-500">
+                      Premium:{" "}
+                    </span>
+                    ✓
+                  </div>
+                </div>
+
+                <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100">
+                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:pr-2">
+                    Advanced Search & Filtering
+                  </div>
+                  <div className="text-slate-700 sm:text-center">
+                    <span className="sm:hidden font-normal text-xs text-slate-500">
+                      Free:{" "}
+                    </span>
+                    Basic
+                  </div>
+                  <div className="text-orange-600 font-semibold sm:text-center">
+                    <span className="sm:hidden font-normal text-xs text-slate-500">
+                      Premium:{" "}
+                    </span>
+                    Enhanced
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={() => alert("Upgrade to Premium clicked!")}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 px-4 rounded-lg text-base transition-colors shadow-sm hover:shadow-md mt-4"
+            >
+              Upgrade to Premium
+            </Button>
+          </div>
+        )}
 
         {!isImporting && (
           <>
