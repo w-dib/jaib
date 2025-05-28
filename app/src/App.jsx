@@ -19,6 +19,7 @@ import SaveArticleHandler from "./components/views/SaveArticleHandler";
 import { LandingPage } from "./components/LandingPage";
 import LogoutHandler from "./components/views/LogoutHandler";
 import PocketImportBanner from "./components/PocketImportBanner";
+import TagsPage from "./pages/TagsPage";
 
 function App() {
   return (
@@ -39,7 +40,7 @@ function AppLayout() {
     setRefreshKey((prevKey) => prevKey + 1);
   };
 
-  const showNavbarPaths = ["/", "/favorites", "/archives"];
+  const showNavbarPaths = ["/", "/favorites", "/archives", "/tags"];
 
   const isMainViewWithNavbar = showNavbarPaths.includes(location.pathname);
 
@@ -98,6 +99,7 @@ function AppLayout() {
             </ViewWrapper>
           }
         />
+        <Route path="/tags" element={<TagsPage />} />
         <Route path="/article/:id" element={<ArticleView />} />
         <Route path="/save-article" element={<SaveArticleHandler />} />
         <Route path="/logout" element={<LogoutHandler />} />

@@ -104,6 +104,23 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
             }
           </NavLink>
           <NavLink
+            to="/tags"
+            className={({ isActive }) =>
+              `flex flex-col items-center group ${
+                isActive
+                  ? "text-orange-500"
+                  : "text-gray-600 hover:text-orange-500"
+              } px-2 py-1 rounded-md transition-colors`
+            }
+          >
+            <span className="font-semibold">Tags</span>
+            {({ isActive }) =>
+              isActive && (
+                <span className="block w-full h-0.5 bg-orange-500"></span>
+              )
+            }
+          </NavLink>
+          <NavLink
             to="/archives"
             className={({ isActive }) =>
               `flex flex-col items-center group ${
@@ -230,6 +247,19 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
                     }
                   >
                     Favorites
+                  </NavLink>
+                  <NavLink
+                    to="/tags"
+                    onClick={handleNavLinkClickInSheet}
+                    className={({ isActive }) =>
+                      `flex items-center py-2.5 px-3 rounded-md text-base font-medium w-11/12 mx-auto ${
+                        isActive
+                          ? "bg-orange-100 text-orange-700"
+                          : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                      }`
+                    }
+                  >
+                    Tags
                   </NavLink>
                   <NavLink
                     to="/archives"
