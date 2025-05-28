@@ -8,7 +8,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "../../components/ui/avatar";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "../../components/ui/avatar";
 import {
   Tooltip,
   TooltipContent,
@@ -169,8 +173,16 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
               <DropdownMenuTrigger asChild>
                 <button className="focus:outline-none">
                   <Avatar className="h-8 w-8 border-2 border-orange-500 hover:border-orange-600 transition-colors">
+                    {user.user_metadata?.avatar_url && (
+                      <AvatarImage
+                        src={user.user_metadata.avatar_url}
+                        alt={
+                          user.user_metadata.name || user.email || "User avatar"
+                        }
+                      />
+                    )}
                     <AvatarFallback className="bg-orange-100 text-orange-600">
-                      {user.email ? user.email.charAt(0).toUpperCase() : ""}
+                      {user.email ? user.email.charAt(0).toUpperCase() : "U"}
                     </AvatarFallback>
                   </Avatar>
                 </button>
@@ -281,8 +293,20 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
                   <div className="flex flex-col w-full space-y-3">
                     <div className="flex items-center space-x-3 px-1 w-11/12 mx-auto">
                       <Avatar className="h-9 w-9 border-2 border-orange-500">
+                        {user.user_metadata?.avatar_url && (
+                          <AvatarImage
+                            src={user.user_metadata.avatar_url}
+                            alt={
+                              user.user_metadata.name ||
+                              user.email ||
+                              "User avatar"
+                            }
+                          />
+                        )}
                         <AvatarFallback className="bg-orange-100 text-orange-600">
-                          {user.email ? user.email.charAt(0).toUpperCase() : ""}
+                          {user.email
+                            ? user.email.charAt(0).toUpperCase()
+                            : "U"}
                         </AvatarFallback>
                       </Avatar>
                       <span className="text-xs font-medium text-gray-700 truncate">
