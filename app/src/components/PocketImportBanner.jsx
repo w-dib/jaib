@@ -410,7 +410,9 @@ function PocketImportBanner() {
 
             <div className="my-4 text-sm">
               <div className="hidden sm:grid sm:grid-cols-3 sm:gap-x-4 sm:mb-2">
-                <div className="font-semibold text-slate-700 pb-1">Feature</div>
+                <div className="font-semibold text-slate-700 pb-1 sm:text-center">
+                  Feature
+                </div>
                 <div className="font-semibold text-slate-700 text-center pb-1">
                   Free
                 </div>
@@ -421,7 +423,7 @@ function PocketImportBanner() {
 
               <div className="space-y-3 sm:space-y-0">
                 <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100">
-                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:pr-2">
+                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:text-center">
                     Articles per Import
                   </div>
                   <div className="text-slate-700 sm:text-center">
@@ -439,7 +441,7 @@ function PocketImportBanner() {
                 </div>
 
                 <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100">
-                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:pr-2">
+                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:text-center">
                     Bulk Tagging & Organizing
                   </div>
                   <div className="text-slate-400 sm:text-center">
@@ -457,7 +459,7 @@ function PocketImportBanner() {
                 </div>
 
                 <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100">
-                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:pr-2">
+                  <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:text-center">
                     Advanced Search & Filtering
                   </div>
                   <div className="text-slate-700 sm:text-center">

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   MoreHorizontal,
@@ -7,6 +7,7 @@ import {
   Star,
   BookDown,
   BookUp,
+  Loader2,
 } from "lucide-react"; // Import necessary Lucide icons
 import {
   DropdownMenu,
@@ -38,6 +39,7 @@ function ArticleCard({
   const navigate = useNavigate();
   const { user } = useAuth(); // Added
   const [imageLoading, setImageLoading] = useState(true);
+  const [imageFailed, setImageFailed] = useState(false); // New state for image load failure
   // We need a way to reflect changes in the UI immediately.
   // Adding local state for isFavorited and isArchived.
   // Initialize with prop values, but allow local updates.
@@ -63,75 +65,36 @@ function ArticleCard({
 
   // Function to extract first image URL from content with better URL handling
   const extractFirstImageUrl = (content, baseUrl) => {
-    if (!content) {
-      // console.log("Article data for image extraction (no content):", article);
-      return null;
-    }
-
-    // console.log("Content to parse for image:", content.substring(0, 300) + "...");
-
-    const imgRegex = /<img[^>]*src=["']([^"']+)["'][^>]*>/i;
+    if (!content) return null;
+    // Simpler regex to avoid tool escaping issues, might be less robust for complex HTML attributes
+    const imgRegex = /<img[^>]+src=(?:"([^"]+)"|'([^']+)')/i;
     const match = content.match(imgRegex);
+    if (!match) return null;
+    let imageUrl = match[1] || match[2]; // Get src from either double or single quotes
+    if (!imageUrl) return null;
+    imageUrl = imageUrl.trim();
 
-    if (!match || !match[1]) {
-      // console.log("No image src found in content with regex.");
-      return null;
-    }
-
-    let imageUrl = match[1].trim();
-    // console.log("Initial matched image URL:", imageUrl);
-
-    let parsedBaseUrl;
     try {
-      parsedBaseUrl = new URL(baseUrl);
+      const base = new URL(baseUrl);
+      // Handle protocol-relative URLs
+      if (imageUrl.startsWith("//")) imageUrl = `${base.protocol}${imageUrl}`;
+      // Handle root-relative URLs
+      else if (imageUrl.startsWith("/")) imageUrl = `${base.origin}${imageUrl}`;
+      // Handle other relative URLs (needs base to resolve properly)
+      else if (!imageUrl.startsWith("http") && !imageUrl.startsWith("data:"))
+        imageUrl = new URL(imageUrl, base.href).href;
+
+      // Final validation if it looks like a URL
+      return new URL(imageUrl).href;
     } catch (e) {
       console.error(
-        "Invalid baseUrl provided to extractFirstImageUrl:",
+        "Error parsing/resolving image URL:",
+        imageUrl,
+        "Base:",
         baseUrl,
-        "Error:",
         e
       );
-      return null; // Cannot resolve relative URLs without a valid base
-    }
-
-    if (imageUrl.startsWith("//")) {
-      imageUrl = `${parsedBaseUrl.protocol}${imageUrl}`;
-      // console.log("Converted protocol-relative URL to:", imageUrl);
-    } else if (imageUrl.startsWith("/")) {
-      // Path-relative, not starting with //
-      imageUrl = `${parsedBaseUrl.origin}${imageUrl}`;
-      // console.log("Converted path-relative URL to:", imageUrl);
-    } else if (
-      !imageUrl.startsWith("http://") &&
-      !imageUrl.startsWith("https://") &&
-      !imageUrl.startsWith("data:")
-    ) {
-      // It's not protocol-relative, not path-relative, and not absolute. Try to resolve it against the base URL's path.
-      try {
-        imageUrl = new URL(imageUrl, parsedBaseUrl.href).href;
-        // console.log("Resolved potentially relative URL against base:", imageUrl);
-      } catch (e) {
-        console.error(
-          "Failed to resolve ambiguous relative URL:",
-          imageUrl,
-          "against base:",
-          parsedBaseUrl.href,
-          "Error:",
-          e
-        );
-        return null;
-      }
-    }
-    // If it starts with http://, https://, or data:, it's considered absolute or self-contained.
-
-    // Final validation
-    try {
-      const finalUrl = new URL(imageUrl);
-      // console.log("Final validated image URL:", finalUrl.href);
-      return finalUrl.href;
-    } catch (e) {
-      console.error("Invalid final image URL:", imageUrl, "Error:", e);
-      return null;
+      return null; // Return null if any error during URL construction/validation
     }
   };
 
@@ -159,10 +122,21 @@ function ArticleCard({
     article.lead_image_url ||
     extractFirstImageUrl(article.content, article.url);
 
-  // Reset image state when URL changes
-  React.useEffect(() => {
-    setImageLoading(true);
+  // Reset image state when URL changes or article itself changes
+  useEffect(() => {
+    setImageLoading(!!imageUrl); // Set loading only if there IS an image URL to attempt
+    setImageFailed(false);
   }, [imageUrl]);
+
+  const handleImageError = () => {
+    setImageLoading(false);
+    setImageFailed(true);
+  };
+
+  const handleImageLoad = () => {
+    setImageLoading(false);
+    setImageFailed(false);
+  };
 
   const handleCardClick = (e) => {
     // Prevent navigation if clicking on elements that should not trigger it (e.g. dropdown trigger, dialog content)
@@ -284,148 +258,137 @@ function ArticleCard({
 
   return (
     <div
-      className="border rounded-lg overflow-hidden shadow-sm flex flex-col h-full cursor-pointer hover:shadow-md transition-shadow"
+      className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-200 cursor-pointer flex flex-col h-full"
       onClick={handleCardClick}
+      role="button"
+      tabIndex={0}
+      onKeyPress={(e) => e.key === "Enter" && handleCardClick(e)}
     >
-      {/* Image */}
-      <div className="w-full h-32 bg-gray-100 flex items-center justify-center overflow-hidden relative">
-        {imageUrl ? (
-          <>
-            {imageLoading && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-                <div className="animate-pulse flex space-x-4">
-                  <div className="h-8 w-8 bg-gray-200 rounded-full"></div>
-                </div>
-              </div>
-            )}
-            <img
-              src={imageUrl}
-              alt={article.title || "Article Image"}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${
-                imageLoading ? "opacity-0" : "opacity-100"
-              }`}
-              onLoad={() => setImageLoading(false)}
-              onError={() => {
-                setImageLoading(false);
-                console.log("Image failed to load:", imageUrl);
-              }}
-            />
-          </>
+      {/* Image or Placeholder */}
+      <div className="relative w-full aspect-[16/9] bg-gray-100 group overflow-hidden">
+        {imageUrl && !imageFailed ? (
+          <img
+            src={imageUrl}
+            alt={article.title || "Article image"}
+            className={`w-full h-full object-cover transition-opacity duration-300 ${
+              imageLoading ? "opacity-0" : "opacity-100"
+            }`}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            loading="lazy"
+          />
+        ) : article.title ? (
+          <div
+            className={`w-full h-full flex items-center justify-center ${
+              orangeShades[
+                Math.abs(article.title.charCodeAt(0) % orangeShades.length)
+              ] || orangeShades[0]
+            } select-none`}
+          >
+            <span className="text-5xl font-bold opacity-80">
+              {article.title.charAt(0).toUpperCase()}
+            </span>
+          </div>
         ) : (
-          (() => {
-            const firstLetter = article.title
-              ? article.title[0].toUpperCase()
-              : "J"; // Default to 'J' if no title
-            // Pseudo-randomly select a shade based on article ID to keep it consistent
-            // Ensure article.id is a number and shades array is not empty
-            const shadeIndex =
-              typeof article.id === "number" && orangeShades.length > 0
-                ? article.id % orangeShades.length
-                : 0;
-            const selectedShadeClass =
-              orangeShades[shadeIndex] || orangeShades[0];
-
-            return (
-              <div
-                className={`w-full h-full flex flex-col items-center justify-center ${selectedShadeClass}`}
-              >
-                <span className="text-6xl font-bold">{firstLetter}</span>
-              </div>
-            );
-          })()
+          <div className="w-full h-full flex items-center justify-center bg-gray-200 select-none">
+            <BookDown size={48} className="text-gray-400" />
+          </div>
+        )}
+        {imageLoading && imageUrl && !imageFailed && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-200/60 backdrop-blur-sm">
+            <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
+          </div>
         )}
       </div>
 
-      <div className="p-4 flex flex-col flex-grow">
-        {/* Title */}
-        <h3 className="text-lg font-semibold mb-1 line-clamp-2 text-left">
-          {article.title || "Untitled Article"}
-        </h3>
-
-        <div className="mt-auto flex items-center justify-between text-sm text-gray-500 pt-2">
-          {/* Source (Base URL) and Reading Time */}
-          <div className="flex flex-col items-start">
-            <p className="text-xs text-gray-600 line-clamp-1">
-              {getBaseUrl(article.url)}
+      {/* Content */}
+      <div className="p-4 flex-grow flex flex-col justify-between">
+        <div>
+          <h3
+            className="font-semibold text-lg mb-1 text-gray-800 group-hover:text-orange-600 transition-colors line-clamp-2"
+            title={article.title}
+          >
+            {article.title || "Untitled Article"}
+          </h3>
+          {article.excerpt && (
+            <p className="text-sm text-gray-600 mb-2 line-clamp-3">
+              {article.excerpt}
             </p>
-            <span>
-              {calculateReadingTime(
-                article.excerpt || article.content || article.title
-              )}
+          )}
+        </div>
+        <div className="flex justify-between items-center text-xs text-gray-500 mt-2">
+          <span className="truncate pr-2" title={getBaseUrl(article.url)}>
+            {getBaseUrl(article.url)}
+          </span>
+          <div className="flex items-center flex-shrink-0">
+            <span className="mr-2">
+              {calculateReadingTime(article.content || article.excerpt)}
             </span>
-          </div>
-
-          {/* More Options Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className="p-1 rounded-full hover:bg-gray-100 actions-trigger-button"
+            {/* Actions Trigger Button */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="actions-trigger-button p-1.5 -m-1.5 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+                  aria-label="Article actions"
+                  onClick={(e) => e.stopPropagation()} // Prevent card click
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="dialog-content-wrapper"
                 onClick={(e) => e.stopPropagation()}
-                aria-label="Article actions"
               >
-                <MoreHorizontal size={20} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="dropdown-menu">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {/* Favorite Action */}
-              <DropdownMenuItem
-                className="flex items-center cursor-pointer"
-                onClick={(e) => handleActionClick(e, "favorite")}
-              >
-                <Star
-                  size={16}
-                  className={`mr-2 ${
-                    isFavorited ? "text-yellow-500 fill-yellow-500" : ""
-                  }`}
-                />
-                {isFavorited ? "Unfavorite" : "Favorite"}
-              </DropdownMenuItem>
-
-              {/* Archive Action */}
-              <DropdownMenuItem
-                className="flex items-center cursor-pointer"
-                onClick={(e) => handleActionClick(e, "archive")}
-              >
-                {isArchived ? (
-                  <BookUp size={16} className="mr-2 text-orange-500" />
-                ) : (
-                  <BookDown size={16} className="mr-2" />
-                )}
-                {isArchived ? "Unarchive" : "Archive"}
-              </DropdownMenuItem>
-
-              {/* Delete Action */}
-              <DropdownMenuItem
-                className="flex items-center cursor-pointer"
-                onClick={(e) => handleActionClick(e, "delete")}
-              >
-                <Trash size={16} className="mr-2" /> Delete
-              </DropdownMenuItem>
-
-              {/* Share Action */}
-              <DropdownMenuItem
-                className="flex items-center cursor-pointer"
-                onClick={(e) => handleActionClick(e, "share")}
-              >
-                <Share2 size={16} className="mr-2" /> Share
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                <DropdownMenuItem
+                  onClick={(e) => handleActionClick(e, "favorite")}
+                  className={
+                    isFavorited
+                      ? "text-orange-600 focus:bg-orange-50 focus:text-orange-700"
+                      : ""
+                  }
+                >
+                  <Star
+                    size={16}
+                    className={`mr-2 ${isFavorited ? "fill-current" : ""}`}
+                  />
+                  {isFavorited ? "Unfavorite" : "Favorite"}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => handleActionClick(e, "archive")}
+                >
+                  <BookUp size={16} className="mr-2" />
+                  {isArchived ? "Mark as Unread" : "Archive"}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDeleteDialogOpen(true);
+                  }}
+                  className="text-red-600 focus:bg-red-50 focus:text-red-700"
+                >
+                  <Trash size={16} className="mr-2" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
-
+      {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="dialog-content">
+        <DialogContent
+          className="dialog-content-wrapper sm:max-w-md"
+          onClick={(e) => e.stopPropagation()}
+        >
           <DialogHeader>
-            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogTitle>Delete Article?</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this article? This action cannot
-              be undone.
+              Are you sure you want to delete "{article.title || "this article"}
+              "? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="mt-4">
             <DialogClose asChild>
               <Button variant="outline" onClick={(e) => e.stopPropagation()}>
                 Cancel
