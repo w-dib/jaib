@@ -1,6 +1,6 @@
 import React from "react";
 import ArticleCard from "./ArticleCard";
-import { ArrowDownNarrowWide, ArrowDownWideNarrow } from "lucide-react";
+import { ArrowUpNarrowWide, ArrowDownWideNarrow } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -35,7 +35,7 @@ function ArticleGrid({
                   }
                 >
                   {sortOrder === "asc" ? (
-                    <ArrowDownNarrowWide size={20} className="size-5" />
+                    <ArrowUpNarrowWide size={20} className="size-5" />
                   ) : (
                     <ArrowDownWideNarrow size={20} className="size-5" />
                   )}

@@ -52,6 +52,19 @@ function ArticleView() {
   const [isTaggingDialogOpen, setIsTaggingDialogOpen] = useState(false); // ADDED: State for tagging dialog
 
   useEffect(() => {
+    if (article && article.title) {
+      document.title = `Jaib - ${article.title}`;
+    } else {
+      document.title = "Jaib"; // Default title if no article or title
+    }
+
+    // Cleanup function to reset title when component unmounts or article changes
+    return () => {
+      document.title = "Jaib";
+    };
+  }, [article]); // Re-run effect when article changes
+
+  useEffect(() => {
     const fetchArticle = async () => {
       if (!user) {
         setLoading(false);
