@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Highlighter as HighlighterIcon,
   Share2 as ShareIcon,
+  MoreHorizontal,
 } from "lucide-react";
 // Import updated icons based on user feedback
 import {
@@ -16,6 +17,7 @@ import {
   Trash2, // For Delete
   ExternalLink, // Added for View Original link
   Tag, // IMPORTED: For Tagging
+  Quote, // ADDED: For highlight card UI improvement
 } from "lucide-react";
 
 // Import ShadCN Dialog components with corrected path
@@ -40,9 +42,18 @@ import {
   Popover,
   PopoverContent,
   PopoverAnchor,
+  PopoverTrigger,
 } from "../../../components/ui/popover"; // Added Popover imports
 import { Skeleton } from "../../../components/ui/skeleton"; // Added import for skeleton
 import TaggingDialog from "./TaggingDialog"; // IMPORTED: For Tagging Dialog
+import { toast } from "sonner"; // Import toast function
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "../../../components/ui/sheet"; // IMPORTED: For Highlights Sheet
 
 function ArticleView() {
   const { id } = useParams();
@@ -68,6 +79,11 @@ function ArticleView() {
   const popoverRef = useRef(null);
   const [savedHighlights, setSavedHighlights] = useState([]); // State for persisted highlights
   const [selectedTextContent, setSelectedTextContent] = useState(""); // State for the actual selected text
+  const [isHighlightSheetOpen, setIsHighlightSheetOpen] = useState(false); // ADDED: State for highlight sheet
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768); // ADDED: State for mobile detection
+  const [isDeleteHighlightDialogOpen, setIsDeleteHighlightDialogOpen] =
+    useState(false); // ADDED: For highlight deletion dialog
+  const [highlightToDeleteId, setHighlightToDeleteId] = useState(null); // ADDED: ID of highlight to delete
 
   // Helper function to find text in DOM and return its rects
   // For simplicity with current selector_info, this finds the FIRST match.
@@ -278,6 +294,7 @@ function ArticleView() {
                   rects: rects,
                   text: ann.note,
                   selectorInfo: ann.selector_info, // Keep original selector_info
+                  created_at: ann.created_at, // ADDED: Ensure created_at is included
                 });
               }
             }
@@ -448,10 +465,19 @@ function ArticleView() {
             rects: [...selectionRects],
             text: selectedText,
             selectorInfo: selectorInfo,
+            created_at: data.created_at, // ADDED: Ensure created_at is included
           },
         ]);
         setIsPopoverOpen(false);
         setSelectionRects([]);
+        toast.success("Highlight Saved", {
+          duration: 3000,
+          style: {
+            backgroundColor: "var(--accent)",
+            borderColor: "oklch(0.7 0.15 40)",
+            color: "var(--accent-foreground)",
+          },
+        });
       }
     } catch (e) {
       console.error("[handleSaveHighlight] Exception during Supabase call:", e);
@@ -526,29 +552,6 @@ function ArticleView() {
     setIsPopoverOpen,
   ]); // Dependencies
 
-  // EFFECT: Prevent default context menu on article content
-  useEffect(() => {
-    const contentElement = contentRef.current;
-
-    const handleContextMenu = (event) => {
-      // Only prevent if a selection is active and our popover is likely to show or is shown
-      const selection = window.getSelection();
-      if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
-        event.preventDefault();
-      }
-    };
-
-    if (contentElement) {
-      contentElement.addEventListener("contextmenu", handleContextMenu);
-    }
-
-    return () => {
-      if (contentElement) {
-        contentElement.removeEventListener("contextmenu", handleContextMenu);
-      }
-    };
-  }, [contentRef]); // Re-run if contentRef changes
-
   // EFFECT: Handle clicks outside to close popover
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -579,6 +582,52 @@ function ArticleView() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isPopoverOpen]);
+
+  // ADDED: Function to handle deleting a highlight
+  const handleDeleteHighlight = async (highlightId) => {
+    // This function will now just open the confirmation dialog
+    setHighlightToDeleteId(highlightId);
+    setIsDeleteHighlightDialogOpen(true);
+  };
+
+  // ADDED: Function to confirm and execute highlight deletion
+  const confirmDeleteHighlight = async () => {
+    if (!user || !article || !highlightToDeleteId) return;
+
+    const idToDelete = highlightToDeleteId;
+
+    // Optimistically remove from UI
+    setSavedHighlights((prevHighlights) =>
+      prevHighlights.filter((h) => h.id !== idToDelete)
+    );
+
+    // Remove from Supabase
+    const { error } = await supabase
+      .from("annotations")
+      .delete()
+      .eq("id", idToDelete)
+      .eq("user_id", user.id); // Ensure user owns the annotation
+
+    if (error) {
+      console.error("Error deleting highlight from Supabase:", error);
+      toast.error("Failed to delete highlight.");
+      // Potentially revert UI optimistic update here if needed
+    } else {
+      console.log("Highlight deleted successfully from Supabase:", idToDelete);
+      toast.success("Highlight deleted.");
+    }
+    setIsDeleteHighlightDialogOpen(false); // Close dialog
+    setHighlightToDeleteId(null); // Reset ID
+  };
+
+  // EFFECT: Handle window resize for mobile detection
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768); // Common breakpoint for mobile
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   if (loading) {
     return <Skeleton />; // Use the skeleton component
@@ -655,9 +704,15 @@ function ArticleView() {
               left: `${rect.left}px`,
               width: `${rect.width}px`,
               height: `${rect.height}px`,
-              backgroundColor: "rgba(239, 108, 0, 0.4)", // Darker orange for saved (Tailwind orange-600 equivalent at 40% opacity)
-              zIndex: 9, // Slightly below temporary highlight/popover if they were to overlap, but above content
-              pointerEvents: "none",
+              backgroundColor: "rgba(239, 108, 0, 0.4)",
+              zIndex: 9,
+              cursor: isMobile ? "pointer" : "default", // ADDED: Pointer cursor on mobile
+            }}
+            onClick={() => {
+              if (isMobile) {
+                setIsHighlightSheetOpen(true);
+                // TODO: Consider scrolling to this specific highlight in the sheet later
+              }
             }}
           />
         ))
@@ -774,20 +829,30 @@ function ArticleView() {
               </Tooltip>
             </TooltipProvider>
 
-            {/* Highlight/Tag Button (Placeholder) */}
+            {/* Highlight Menu Button - Always visible now */}
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={() => console.log("Highlight/Tag clicked")}
+                    onClick={() =>
+                      setIsHighlightSheetOpen(!isHighlightSheetOpen)
+                    }
                     className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                    aria-label="Add highlight or tag"
+                    aria-label={
+                      isHighlightSheetOpen
+                        ? "Close Highlight Menu"
+                        : "Open Highlight Menu"
+                    }
                   >
                     <Highlighter size={iconSize} className="text-gray-600" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Highlight/Tag (Soon)</p>
+                  <p>
+                    {isHighlightSheetOpen
+                      ? "Close Highlight Menu"
+                      : "Open Highlight Menu"}
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -934,6 +999,121 @@ function ArticleView() {
           />
         )}
       </div>
+
+      {/* Highlights Sheet - ADDED */}
+      <Sheet open={isHighlightSheetOpen} onOpenChange={setIsHighlightSheetOpen}>
+        <SheetContent
+          side={isMobile ? "bottom" : "left"} // UPDATED: Sheet side based on device
+          className={`w-full flex flex-col ${
+            isMobile ? "h-[60vh]" : "sm:max-w-md"
+          } p-0`}
+        >
+          <SheetHeader className="p-4 border-b">
+            <SheetTitle>My Highlights</SheetTitle>
+            <SheetDescription>
+              Highlights from this article. Click text to scroll in article
+              (future feature).
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {savedHighlights.length > 0 ? (
+              savedHighlights.map((highlight) => (
+                <div
+                  key={highlight.id}
+                  className="border-l-4 border-orange-400 p-3 rounded-r-md shadow-sm bg-white relative group"
+                >
+                  <div className="flex items-start">
+                    <Quote
+                      size={18}
+                      className="text-orange-500 mr-2 flex-shrink-0 mt-0.5"
+                    />
+                    <p className="text-sm text-gray-700 mb-1 italic pr-8">
+                      "{highlight.text}"
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-500 pl-7">
+                    Saved on:{" "}
+                    {new Date(highlight.created_at).toLocaleDateString(
+                      undefined,
+                      { year: "numeric", month: "long", day: "numeric" }
+                    )}
+                  </p>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-1 h-7 w-7"
+                      >
+                        <MoreHorizontal size={18} />
+                        <span className="sr-only">Highlight options</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-auto p-1"
+                      side="bottom"
+                      align="end"
+                    >
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start px-2 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => handleDeleteHighlight(highlight.id)}
+                      >
+                        <Trash2 size={14} className="mr-2" /> Delete
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start px-2 py-1.5 text-sm"
+                        onClick={() =>
+                          console.log("Share highlight ID:", highlight.id)
+                        }
+                      >
+                        <ShareIcon size={14} className="mr-2" /> Share
+                      </Button>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 text-center py-4">
+                No highlights saved for this article yet.
+              </p>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Delete Highlight Confirmation Dialog - ADDED */}
+      <Dialog
+        open={isDeleteHighlightDialogOpen}
+        onOpenChange={setIsDeleteHighlightDialogOpen}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Highlight Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this highlight? This action cannot
+              be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteHighlightDialogOpen(false);
+                setHighlightToDeleteId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteHighlight}>
+              Delete Highlight
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
