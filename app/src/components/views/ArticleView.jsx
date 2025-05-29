@@ -526,6 +526,29 @@ function ArticleView() {
     setIsPopoverOpen,
   ]); // Dependencies
 
+  // EFFECT: Prevent default context menu on article content
+  useEffect(() => {
+    const contentElement = contentRef.current;
+
+    const handleContextMenu = (event) => {
+      // Only prevent if a selection is active and our popover is likely to show or is shown
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+        event.preventDefault();
+      }
+    };
+
+    if (contentElement) {
+      contentElement.addEventListener("contextmenu", handleContextMenu);
+    }
+
+    return () => {
+      if (contentElement) {
+        contentElement.removeEventListener("contextmenu", handleContextMenu);
+      }
+    };
+  }, [contentRef]); // Re-run if contentRef changes
+
   // EFFECT: Handle clicks outside to close popover
   useEffect(() => {
     const handleClickOutside = (event) => {
