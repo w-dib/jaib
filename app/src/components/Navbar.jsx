@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PlusSquare, Search, LogOut, Menu } from "lucide-react";
+import { PlusSquare, Search, LogOut, Menu, HelpCircle } from "lucide-react";
 import { NavLink, Link } from "react-router-dom";
 import logo from "../assets/icon48.png";
 import {
@@ -22,6 +22,7 @@ import {
 import { Button } from "../../components/ui/button";
 import AddUrlPrompt from "./AddUrlPrompt";
 import SearchPrompt from "./SearchPrompt";
+import ExtensionSetupDialog from "./ExtensionSetupDialog";
 import {
   Sheet,
   SheetClose,
@@ -37,6 +38,7 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
   const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isExtensionSetupOpen, setIsExtensionSetupOpen] = useState(false);
 
   const handleSearch = (searchTerm) => {
     console.log("Searching for:", searchTerm);
@@ -166,6 +168,22 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
               </TooltipTrigger>
               <TooltipContent>
                 <p>Search</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setIsExtensionSetupOpen(true)}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                  aria-label="Set up link saving"
+                >
+                  <HelpCircle size={20} className="text-gray-600" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Set up link saving</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -328,18 +346,26 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
           </Sheet>
         </div>
       </nav>
-      <AddUrlPrompt
-        isOpen={isAddUrlOpen}
-        onClose={() => setIsAddUrlOpen(false)}
-        onAdd={(newArticle) => {
-          onArticleAdded(newArticle);
-        }}
-      />
-      <SearchPrompt
-        isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
-        onSearch={handleSearch}
-      />
+      {isAddUrlOpen && (
+        <AddUrlPrompt
+          isOpen={isAddUrlOpen}
+          onOpenChange={setIsAddUrlOpen}
+          onArticleAdded={onArticleAdded}
+        />
+      )}
+      {isSearchOpen && (
+        <SearchPrompt
+          isOpen={isSearchOpen}
+          onOpenChange={setIsSearchOpen}
+          onSearch={handleSearch}
+        />
+      )}
+      {isExtensionSetupOpen && (
+        <ExtensionSetupDialog
+          isOpen={isExtensionSetupOpen}
+          onOpenChange={setIsExtensionSetupOpen}
+        />
+      )}
     </>
   );
 }

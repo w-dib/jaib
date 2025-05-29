@@ -23,6 +23,7 @@ import TagsPage from "./pages/TagsPage";
 import SharedArticleHandler from "./components/views/SharedArticleHandler";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
+import Footer from "./components/Footer";
 
 function App() {
   return (
@@ -49,6 +50,7 @@ function AppLayout() {
 
   const showNavbarPaths = ["/", "/favorites", "/archives", "/tags"];
   const isMainViewWithNavbar = showNavbarPaths.includes(location.pathname);
+  const isArticleView = location.pathname.startsWith("/article/");
 
   if (!user) {
     // Allow direct access to public paths like /terms, /privacy, /auth/callback
@@ -119,6 +121,7 @@ function AppLayout() {
         <Route path="/terms" element={<TermsOfServicePage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
       </Routes>
+      {!isArticleView && <Footer />}
     </div>
   );
 }
