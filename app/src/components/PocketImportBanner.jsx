@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
-import { UploadCloud, X, Loader2, Gem, Zap } from "lucide-react";
+import { UploadCloud, X, Loader2, Gem, Zap, CheckCircle2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
@@ -22,6 +22,8 @@ function PocketImportBanner() {
   const [successfullyImportedCount, setSuccessfullyImportedCount] = useState(0);
   const [failedImportDetails, setFailedImportDetails] = useState([]);
   const [skippedImportDetails, setSkippedImportDetails] = useState([]);
+  const [importCompletedThisSession, setImportCompletedThisSession] =
+    useState(false);
 
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -37,6 +39,7 @@ function PocketImportBanner() {
     setSuccessfullyImportedCount(0);
     setFailedImportDetails([]);
     setSkippedImportDetails([]);
+    setImportCompletedThisSession(false);
 
     if (acceptedFiles && acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
@@ -122,6 +125,7 @@ function PocketImportBanner() {
     setSuccessfullyImportedCount(0);
     setFailedImportDetails([]);
     setSkippedImportDetails([]);
+    setImportCompletedThisSession(false);
   };
 
   const handleStartImport = async () => {
@@ -159,32 +163,44 @@ function PocketImportBanner() {
           });
 
         if (functionError) {
+          // Network or invocation error
           console.error(
-            `Edge function error for ${articleData.url}:`,
+            `Error invoking Edge function for ${articleData.url}:`,
             functionError
           );
           throw {
-            type: "function",
+            type: "FunctionInvocationError",
             message:
               functionError.message ||
-              "Error fetching article data from edge function.",
+              "Error calling the article processing service.",
+            sourceUrl: articleData.url,
           };
         }
-        if (functionResponse.error) {
+
+        // Check for errors returned *within* the function's JSON response
+        if (functionResponse && functionResponse.error) {
           console.error(
             `Error from Edge function logic for ${articleData.url}:`,
-            functionResponse.error
+            functionResponse.message, // Log the specific message from the function
+            functionResponse // Log the whole response for more context
           );
-          throw { type: "function_logic", message: functionResponse.error };
+          throw {
+            type: functionResponse.error, // e.g., "ArticleProcessingError", "Invalid URL Format"
+            message:
+              functionResponse.message ||
+              "An unknown error occurred in the article processor.",
+            sourceUrl: functionResponse.sourceUrl || articleData.url,
+          };
         }
 
+        // If we reach here, functionResponse is the successfully parsed article data
         const parsedArticle = functionResponse;
         const is_read = articleData.status.toLowerCase() === "archive";
 
         // Step 2: Save to 'articles' table
         const { error: insertError } = await supabase.from("articles").insert({
           url: parsedArticle.url,
-          title: parsedArticle.title || "Untitled", // Ensure title has a fallback
+          title: parsedArticle.title || "Untitled",
           content: parsedArticle.content,
           excerpt: parsedArticle.excerpt,
           byline: parsedArticle.byline,
@@ -192,7 +208,6 @@ function PocketImportBanner() {
           lead_image_url: parsedArticle.lead_image_url,
           user_id: user.id,
           is_read: is_read,
-          // site_name will be populated if returned by edge function, or null
           site_name: parsedArticle.siteName || parsedArticle.site_name || null,
         });
 
@@ -202,15 +217,18 @@ function PocketImportBanner() {
             insertError
           );
           if (insertError.code === "23505") {
+            // Unique constraint violation
             throw {
-              type: "duplicate",
+              type: "DuplicateArticle",
               message: "Article already exists in your saves.",
+              sourceUrl: parsedArticle.url,
             };
           } else {
             throw {
-              type: "database",
+              type: "DatabaseInsertError",
               message:
                 insertError.message || "Error saving article to database.",
+              sourceUrl: parsedArticle.url,
             };
           }
         }
@@ -218,82 +236,27 @@ function PocketImportBanner() {
         setSuccessfullyImportedCount((prev) => prev + 1);
       } catch (error) {
         console.error(`Failed to process ${articleData.url}:`, error);
+        const errorSourceUrl = error.sourceUrl || articleData.url; // Ensure we always have a URL for the error entry
 
-        if (error.type === "duplicate") {
+        if (error.type === "DuplicateArticle") {
           currentSkippedDetails.push({
-            url: articleData.url,
+            url: errorSourceUrl,
             originalIndex: articleData.originalIndex,
-            message: error.message,
+            message: error.message || "Already exists.",
           });
         } else {
+          // Use the specific message from the caught error if available
           let userFriendlyError =
-            "An issue occurred while processing this article.";
-          if (error && error.message) {
-            const msg = error.message.toLowerCase();
-            // Check for specific Edge Function execution/fetch errors first
-            if (error.type === "function" || error.type === "function_logic") {
-              if (
-                msg.includes("status code") ||
-                msg.includes("failed to fetch") ||
-                msg.includes("http error")
-              ) {
-                userFriendlyError =
-                  "Could not retrieve article. The website may be unavailable or blocking access.";
-              } else if (msg.includes("invalid url")) {
-                userFriendlyError =
-                  "The URL provided to the processing service was invalid.";
-              } else if (
-                msg.includes("failed to parse") ||
-                msg.includes("readability")
-              ) {
-                userFriendlyError =
-                  "Could not extract content. The article format might be incompatible.";
-              } else {
-                userFriendlyError =
-                  "Article processing failed. Please check the URL or try again later."; // More generic for other function errors
-              }
-            } else if (error.type === "database") {
-              // Database errors other than duplicate
-              userFriendlyError =
-                "Failed to save the article to the database after processing.";
-            }
-            // The existing detailed HTTP status code checks can remain as more specific fallbacks if the above are not met
-            // but the primary error.type should guide the initial message for function/database issues.
-            // This means the detailed HTTP status checks will likely be hit if error.type is not set (e.g. a direct network error before even hitting the function)
-            else if (
-              msg.includes("http error") ||
-              msg.includes("status: 404") ||
-              msg.includes("not found")
-            ) {
-              userFriendlyError =
-                "Article not found. The link may be broken or the page removed.";
-            } else if (
-              msg.includes("status: 403") ||
-              msg.includes("forbidden")
-            ) {
-              userFriendlyError =
-                "Access denied. This article might be private or behind a paywall.";
-            } else if (
-              msg.includes("status: 500") ||
-              msg.includes("status: 502") ||
-              msg.includes("status: 503") ||
-              msg.includes("status: 504") ||
-              msg.includes("server error")
-            ) {
-              userFriendlyError =
-                "The article's website had a problem. You could try again later.";
-            } else if (msg.includes("timeout")) {
-              userFriendlyError =
-                "Timed out trying to reach the article. The website might be slow or offline.";
-            } else {
-              userFriendlyError =
-                error.message || "An unknown processing error occurred.";
-            }
-          }
+            error.message || "An unknown processing error occurred.";
+
+          // No need for the extensive cascading if/else for HTTP status codes here anymore,
+          // as the Edge Function now returns more structured errors.
+          // The `error.message` from the Edge Function (e.g., timeout, parse failure) is now the primary source.
+
           currentFailDetails.push({
-            url: articleData.url,
+            url: errorSourceUrl,
             originalIndex: articleData.originalIndex,
-            error: userFriendlyError,
+            error: userFriendlyError, // This will now contain messages like "Request to ... timed out..."
           });
         }
       }
@@ -308,6 +271,7 @@ function PocketImportBanner() {
     // Wait a bit to show final stats then redirect
     setTimeout(() => {
       setIsImporting(false); // Now allow UI to show final summary before redirect
+      setImportCompletedThisSession(true);
       // Potentially clear file name and extracted data after successful import and redirect
       // setFileName(null);
       // setExtractedArticlesData([]);
@@ -487,7 +451,7 @@ function PocketImportBanner() {
           </div>
         )}
 
-        {!isImporting && (
+        {!isImporting && !importCompletedThisSession && (
           <>
             <div
               {...getRootProps()}
@@ -497,11 +461,9 @@ function PocketImportBanner() {
                               ? "border-orange-500 bg-orange-50"
                               : "border-gray-300 hover:border-gray-400"
                           }
-                          transition-colors ${
-                            isImporting ? "opacity-50 cursor-not-allowed" : ""
-                          }`}
+                          transition-colors`}
             >
-              <input {...getInputProps()} disabled={isImporting} />
+              <input {...getInputProps()} />
               <UploadCloud size={48} className="mx-auto text-gray-400 mb-3" />
               {fileName ? (
                 <div>
@@ -512,7 +474,6 @@ function PocketImportBanner() {
                       removeFile();
                     }}
                     className="mt-2 text-sm text-red-500 hover:text-red-700"
-                    disabled={isImporting}
                   >
                     Remove file
                   </button>
@@ -532,19 +493,23 @@ function PocketImportBanner() {
           </>
         )}
 
-        {extractedArticlesData.length > 0 && !isImporting && !parseError && (
-          <div className="mt-6 text-center">
-            <p className="text-lg text-green-700 mb-2">
-              Found {extractedArticlesData.length} article(s) ready for import.
-            </p>
-            <button
-              onClick={handleStartImport}
-              className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-md text-lg shadow-md transition-colors flex items-center justify-center mx-auto"
-            >
-              Start Import
-            </button>
-          </div>
-        )}
+        {extractedArticlesData.length > 0 &&
+          !isImporting &&
+          !parseError &&
+          !importCompletedThisSession && (
+            <div className="mt-6 text-center">
+              <p className="text-lg text-green-700 mb-2">
+                Found {extractedArticlesData.length} article(s) ready for
+                import.
+              </p>
+              <button
+                onClick={handleStartImport}
+                className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-md text-lg shadow-md transition-colors flex items-center justify-center mx-auto"
+              >
+                Start Import
+              </button>
+            </div>
+          )}
 
         {isImporting && (
           <div className="mt-6 w-full">
@@ -563,72 +528,93 @@ function PocketImportBanner() {
           </div>
         )}
 
-        {!isImporting &&
-          (successfullyImportedCount > 0 ||
-            failedImportDetails.length > 0 ||
-            skippedImportDetails.length > 0) && (
-            <div className="mt-6 text-sm">
-              {successfullyImportedCount > 0 && (
-                <p className="text-green-600">
-                  Successfully imported {successfullyImportedCount} article(s).
-                </p>
-              )}
-              {skippedImportDetails.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-blue-600">
-                    Skipped {skippedImportDetails.length} article(s) (already
-                    exist):
-                  </p>
-                  <ul className="list-disc list-inside max-h-32 overflow-y-auto text-xs text-blue-500">
-                    {skippedImportDetails.map((skip, index) => (
-                      <li key={index}>
-                        Original row {skip.originalIndex + 2}:{" "}
-                        <a
-                          href={skip.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          {skip.url.substring(0, 50)}...
-                        </a>{" "}
-                        - {skip.message}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {failedImportDetails.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-red-600">
-                    Failed to import {failedImportDetails.length} article(s):
-                  </p>
-                  <ul className="list-disc list-inside max-h-32 overflow-y-auto text-xs text-red-500">
-                    {failedImportDetails.map((fail, index) => (
-                      <li key={index}>
-                        Original row {fail.originalIndex + 2}:{" "}
-                        <a
-                          href={fail.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="hover:underline"
-                        >
-                          {fail.url.substring(0, 50)}...
-                        </a>{" "}
-                        - {fail.error}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {importError && (
-                <p className="mt-2 text-red-600">
-                  Overall import error: {importError}
-                </p>
-              )}
+        {/* New Combined DONE state and Statistics Display */}
+        {!isImporting && importCompletedThisSession && (
+          <div className="mt-6 text-center">
+            {" "}
+            {/* Main container for DONE state */}
+            <div className="flex items-center justify-center mb-4">
+              <CheckCircle2 size={48} className="text-orange-500 mr-3" />
+              <h2 className="text-3xl font-bold text-orange-500">DONE!</h2>
             </div>
-          )}
+            {/* Import Statistics - Placed *inside* the 'importCompletedThisSession' block */}
+            {(successfullyImportedCount > 0 ||
+              failedImportDetails.length > 0 ||
+              skippedImportDetails.length > 0) && (
+              <div className="mt-4 mb-6 text-sm">
+                {" "}
+                {/* Added some margin for spacing */}
+                {successfullyImportedCount > 0 && (
+                  <p className="text-green-600">
+                    Successfully imported {successfullyImportedCount}{" "}
+                    article(s).
+                  </p>
+                )}
+                {skippedImportDetails.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-blue-600">
+                      Skipped {skippedImportDetails.length} article(s) (already
+                      exist):
+                    </p>
+                    <ul className="list-disc list-inside max-h-32 overflow-y-auto text-xs text-blue-500">
+                      {skippedImportDetails.map((skip, index) => (
+                        <li key={index}>
+                          Original row {skip.originalIndex + 2}:{" "}
+                          <a
+                            href={skip.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            {skip.url.substring(0, 50)}...
+                          </a>{" "}
+                          - {skip.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {failedImportDetails.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-red-600">
+                      Failed to import {failedImportDetails.length} article(s):
+                    </p>
+                    <ul className="list-disc list-inside max-h-32 overflow-y-auto text-xs text-red-500">
+                      {failedImportDetails.map((fail, index) => (
+                        <li key={index}>
+                          Original row {fail.originalIndex + 2}:{" "}
+                          <a
+                            href={fail.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:underline"
+                          >
+                            {fail.url.substring(0, 50)}...
+                          </a>{" "}
+                          - {fail.error}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {importError && (
+                  <p className="mt-2 text-red-600">
+                    Overall import error: {importError}
+                  </p>
+                )}
+              </div>
+            )}
+            <Button
+              onClick={removeFile} // removeFile will reset importCompletedThisSession, allowing new import
+              className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-md text-lg shadow-md transition-colors"
+            >
+              Import another .csv?
+            </Button>
+          </div>
+        )}
 
-        {!isImporting && (
+        {/* Only show "Not sure how to export?" if we are in a state to accept a new file */}
+        {!isImporting && !importCompletedThisSession && (
           <div className="mt-6 text-sm text-center">
             <p className="text-gray-600">
               Not sure how to export your pocket articles?{" "}
