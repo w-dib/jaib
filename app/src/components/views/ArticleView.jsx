@@ -462,7 +462,7 @@ function ArticleView() {
   useEffect(() => {
     const contentElement = contentRef.current;
 
-    const handleMouseUp = () => {
+    const handleTextSelectionEnd = () => {
       const selection = window.getSelection();
       if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
@@ -516,15 +516,17 @@ function ArticleView() {
     };
 
     if (contentElement) {
-      contentElement.addEventListener("mouseup", handleMouseUp);
+      contentElement.addEventListener("mouseup", handleTextSelectionEnd);
+      contentElement.addEventListener("touchend", handleTextSelectionEnd);
     }
 
     return () => {
       if (contentElement) {
-        contentElement.removeEventListener("mouseup", handleMouseUp);
+        contentElement.removeEventListener("mouseup", handleTextSelectionEnd);
+        contentElement.removeEventListener("touchend", handleTextSelectionEnd);
       }
     };
-  }, [article, isPopoverOpen]); // Rerun if article changes or popover state (to ensure cleanup if an external event closes it)
+  }, [article, isPopoverOpen, selectedTextContent]);
 
   // EFFECT: Handle clicks outside to close popover
   useEffect(() => {
