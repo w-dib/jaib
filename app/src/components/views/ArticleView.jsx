@@ -53,6 +53,7 @@ function ArticleView() {
   const [error, setError] = useState(null);
   const contentRef = useRef(null); // Ref for the article content div
   const [readingProgress, setReadingProgress] = useState(0); // State for reading progress
+  const selectionChangeTimeoutRef = useRef(null); // Ref for debouncing selectionchange
 
   // Local state for favorite and read status, initialized from fetched article
   const [isFavorited, setIsFavorited] = useState(false);
@@ -459,75 +460,71 @@ function ArticleView() {
 
   // EFFECT: Handle text selection for popover
   useEffect(() => {
-    const contentElement = contentRef.current;
-
     const handleTextSelectionEnd = () => {
-      setTimeout(() => {
-        // Defer execution
+      clearTimeout(selectionChangeTimeoutRef.current);
+      selectionChangeTimeoutRef.current = setTimeout(() => {
         const selection = window.getSelection();
-        if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+        if (
+          selection &&
+          !selection.isCollapsed &&
+          selection.rangeCount > 0 &&
+          contentRef.current && // Ensure contentRef.current exists
+          contentRef.current.contains(
+            selection.getRangeAt(0).commonAncestorContainer
+          ) // Check selection is within content
+        ) {
           const range = selection.getRangeAt(0);
+          const rects = Array.from(range.getClientRects()).map((rect) => ({
+            top: rect.top + window.scrollY,
+            left: rect.left + window.scrollX,
+            width: rect.width,
+            height: rect.height,
+          }));
 
-          // Check if the selection is within the article content
-          if (
-            contentElement &&
-            contentElement.contains(range.commonAncestorContainer)
-          ) {
-            const rects = Array.from(range.getClientRects()).map((rect) => ({
-              top: rect.top + window.scrollY, // Adjust for page scroll
-              left: rect.left + window.scrollX,
-              width: rect.width,
-              height: rect.height,
-            }));
+          if (rects.length > 0) {
+            const firstRect = rects[0];
+            const textContent = range.toString();
+            setSelectedTextContent(textContent);
 
-            if (rects.length > 0) {
-              const firstRect = rects[0];
-              const textContent = range.toString(); // Get text content here
-              setSelectedTextContent(textContent); // Store it in state
-
-              setPopoverAnchorRect({
-                top: firstRect.top - 64, // Adjusted: original 10px offset + 32px (for pt-8 equivalent)
-                left: firstRect.left + firstRect.width / 2,
-                width: 1, // Anchor can be minimal
-                height: 1,
-              });
-              setSelectionRects(rects);
-              setIsPopoverOpen(true);
-              // selection.removeAllRanges(); // Clear browser's default highlight
-            } else {
-              setIsPopoverOpen(false);
-              setSelectionRects([]);
-            }
+            setPopoverAnchorRect({
+              top: firstRect.top - 64,
+              left: firstRect.left + firstRect.width / 2,
+              width: 1,
+              height: 1,
+            });
+            setSelectionRects(rects);
+            setIsPopoverOpen(true);
+            // No need to call selection.removeAllRanges() here if selectionchange is used,
+            // as the visual selection itself is what we are reacting to.
+            // If blue highlight persists and is an issue, it might need to be revisited.
           } else {
-            // Selection is outside the content area
-            if (isPopoverOpen) {
-              setIsPopoverOpen(false);
-              setSelectionRects([]);
-            }
+            setIsPopoverOpen(false);
+            setSelectionRects([]);
           }
         } else {
-          // No selection or selection collapsed
+          // If selection is outside contentRef or collapsed, close popover
           if (isPopoverOpen) {
-            // Only close if it was open
             setIsPopoverOpen(false);
             setSelectionRects([]);
           }
         }
-      }, 0); // End of setTimeout
+      }, 250); // 250ms debounce delay
     };
 
-    if (contentElement) {
-      contentElement.addEventListener("mouseup", handleTextSelectionEnd);
-      contentElement.addEventListener("touchend", handleTextSelectionEnd);
-    }
+    document.addEventListener("selectionchange", handleTextSelectionEnd);
 
     return () => {
-      if (contentElement) {
-        contentElement.removeEventListener("mouseup", handleTextSelectionEnd);
-        contentElement.removeEventListener("touchend", handleTextSelectionEnd);
-      }
+      document.removeEventListener("selectionchange", handleTextSelectionEnd);
+      clearTimeout(selectionChangeTimeoutRef.current); // Clear timeout on cleanup
     };
-  }, [article, isPopoverOpen, selectedTextContent]);
+  }, [
+    contentRef,
+    isPopoverOpen,
+    setSelectedTextContent,
+    setPopoverAnchorRect,
+    setSelectionRects,
+    setIsPopoverOpen,
+  ]); // Dependencies
 
   // EFFECT: Handle clicks outside to close popover
   useEffect(() => {
