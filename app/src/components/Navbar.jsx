@@ -150,7 +150,8 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
             className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 h-auto"
             aria-label="Save a URL"
           >
-            <PlusSquare size={18} className="mr-2" />+ Add URL
+            <PlusSquare size={18} className="mr-2" />
+            Import URL(s)
           </Button>
           <TooltipProvider delayDuration={200}>
             <Tooltip>
@@ -218,7 +219,7 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
                   variant="default"
                 >
                   <PlusSquare size={18} className="mr-3" />
-                  Add URL
+                  Import URL(s)
                 </Button>
                 <Button
                   onClick={() => {

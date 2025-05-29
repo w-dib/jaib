@@ -21,8 +21,8 @@ import {
   TooltipTrigger,
 } from "../../components/ui/tooltip";
 
-function PocketImportBanner() {
-  const [showUploadArea, setShowUploadArea] = useState(false);
+function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
+  const [showUploadArea, setShowUploadArea] = useState(!!isInsideModal);
   const [fileName, setFileName] = useState(null);
   const [extractedArticlesData, setExtractedArticlesData] = useState([]);
   const [parseError, setParseError] = useState(null);
@@ -290,36 +290,43 @@ function PocketImportBanner() {
     // setIsImporting(false); // Keep true to show final stats until redirect
 
     // Wait a bit to show final stats then redirect
-    setTimeout(() => {
-      setIsImporting(false); // Now allow UI to show final summary before redirect
+    if (!isInsideModal) {
+      setTimeout(() => {
+        setIsImporting(false); // Now allow UI to show final summary before redirect
+        setImportCompletedThisSession(true);
+        // Potentially clear file name and extracted data after successful import and redirect
+        // setFileName(null);
+        // setExtractedArticlesData([]);
+        if (currentFailDetails.length === 0 && !importError) {
+          // only redirect if all successful
+          // navigate("/"); // TODO: Decide on redirect behavior based on success/failure
+        }
+        // If we want to always navigate or based on some condition:
+        // For now, let's only navigate if there are no overall errors and some success
+        if (!importError && currentSuccessCount > 0) {
+          // Consider adding a small delay *before* navigating to let user see final message
+          setTimeout(() => navigate("/"), 1500);
+        } else if (
+          !importError &&
+          currentSuccessCount === 0 &&
+          currentFailDetails.length > 0
+        ) {
+          // All failed, maybe don't navigate or show a stronger error
+          setCurrentImportStatusMessage(
+            "All articles failed to import. Please check details."
+          );
+        } else if (importError) {
+          setCurrentImportStatusMessage(
+            `Import process encountered an error: ${importError}`
+          );
+        }
+      }, 1000); // Delay before setting isImporting to false and deciding on navigation
+    } else {
+      // If inside modal, just set importing to false and completed.
+      // The "Import another CSV?" button will trigger onReturnToChoice
+      setIsImporting(false);
       setImportCompletedThisSession(true);
-      // Potentially clear file name and extracted data after successful import and redirect
-      // setFileName(null);
-      // setExtractedArticlesData([]);
-      if (currentFailDetails.length === 0 && !importError) {
-        // only redirect if all successful
-        // navigate("/"); // TODO: Decide on redirect behavior based on success/failure
-      }
-      // If we want to always navigate or based on some condition:
-      // For now, let's only navigate if there are no overall errors and some success
-      if (!importError && currentSuccessCount > 0) {
-        // Consider adding a small delay *before* navigating to let user see final message
-        setTimeout(() => navigate("/"), 1500);
-      } else if (
-        !importError &&
-        currentSuccessCount === 0 &&
-        currentFailDetails.length > 0
-      ) {
-        // All failed, maybe don't navigate or show a stronger error
-        setCurrentImportStatusMessage(
-          "All articles failed to import. Please check details."
-        );
-      } else if (importError) {
-        setCurrentImportStatusMessage(
-          `Import process encountered an error: ${importError}`
-        );
-      }
-    }, 1000); // Delay before setting isImporting to false and deciding on navigation
+    }
   };
 
   const handleDismissPermanently = (e) => {
@@ -328,18 +335,35 @@ function PocketImportBanner() {
     setBannerVisible(false);
   };
 
-  if (!bannerVisible) {
-    if (!showUploadArea) {
-      return null;
+  const handleBannerClick = () => {
+    // This function is only relevant if not inside a modal, as the banner isn't shown in modal mode.
+    if (!isInsideModal) {
+      setShowUploadArea(true);
     }
-  } else if (!showUploadArea) {
+  };
+
+  const handleCloseUploadArea = () => {
+    if (isInsideModal && onReturnToChoice) {
+      onReturnToChoice(); // Go back to choice view in parent modal
+    } else {
+      setShowUploadArea(false); // Standard behavior if not in modal
+    }
+  };
+
+  if (!bannerVisible && !showUploadArea) {
+    return null; // If permanently dismissed and not actively showing upload area, render nothing
+  }
+
+  // The initial small banner (to click to show upload area) is only rendered if NOT isInsideModal.
+  // If isInsideModal, the component effectively starts with showUploadArea = true.
+  if (!isInsideModal && !showUploadArea && bannerVisible) {
     return (
       <div
         className="bg-slate-50 border border-slate-200 text-slate-700 p-3.5 mt-4 rounded-lg flex items-center justify-between shadow-sm hover:shadow-md hover:border-slate-300 transition-all duration-200 max-w-max mx-auto cursor-pointer"
         role="button"
-        onClick={() => setShowUploadArea(true)}
+        onClick={handleBannerClick} // Use new handler
         tabIndex={0}
-        onKeyPress={(e) => e.key === "Enter" && setShowUploadArea(true)}
+        onKeyPress={(e) => e.key === "Enter" && handleBannerClick()} // Use new handler
       >
         <div className="flex items-center">
           <UploadCloud
@@ -401,7 +425,8 @@ function PocketImportBanner() {
           <button
             onClick={() => {
               if (isImporting) return;
-              setShowUploadArea(false);
+              // If inside modal, closing the upload area should go back to choice view
+              handleCloseUploadArea();
             }}
             className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
             aria-label="Close import area"
@@ -658,8 +683,15 @@ function PocketImportBanner() {
               </div>
             )}
             <Button
-              onClick={removeFile} // removeFile will reset importCompletedThisSession, allowing new import
-              className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-md text-lg shadow-md transition-colors"
+              onClick={() => {
+                if (isInsideModal && onReturnToChoice) {
+                  removeFile(); // Still reset local state
+                  onReturnToChoice();
+                } else {
+                  removeFile(); // Standard behavior
+                }
+              }}
+              className="mt-6 px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-md text-lg shadow-md transition-colors"
             >
               Import another .csv?
             </Button>
