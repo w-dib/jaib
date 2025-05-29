@@ -41,7 +41,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "../../../components/ui/popover"; // Added Popover imports
-import Skeleton from "../Skeleton"; // Added import for skeleton
+import { Skeleton } from "../../../components/ui/skeleton"; // Added import for skeleton
 import TaggingDialog from "./TaggingDialog"; // IMPORTED: For Tagging Dialog
 
 function ArticleView() {
