@@ -2,7 +2,11 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { supabase } from "../../lib/supabase";
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  Highlighter as HighlighterIcon,
+  Share2 as ShareIcon,
+} from "lucide-react";
 // Import updated icons based on user feedback
 import {
   Star, // For Favorite/Unfavorite
@@ -32,6 +36,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "../../../components/ui/tooltip"; // Added Tooltip imports
+import {
+  Popover,
+  PopoverContent,
+  PopoverAnchor,
+} from "../../../components/ui/popover"; // Added Popover imports
 import ArticleViewSkeleton from "../ArticleViewSkeleton"; // Added import for skeleton
 import TaggingDialog from "./TaggingDialog"; // IMPORTED: For Tagging Dialog
 
@@ -50,6 +59,13 @@ function ArticleView() {
   const [isRead, setIsRead] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isTaggingDialogOpen, setIsTaggingDialogOpen] = useState(false); // ADDED: State for tagging dialog
+
+  // State for text selection popover
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [popoverAnchorRect, setPopoverAnchorRect] = useState(null); // Stores { top, left, width, height } for PopoverAnchor
+  const [selectionRects, setSelectionRects] = useState([]); // Stores DOMRects for drawing custom highlights
+  const [currentSelectionRange, setCurrentSelectionRange] = useState(null);
+  const popoverRef = useRef(null);
 
   useEffect(() => {
     if (article && article.title) {
@@ -257,6 +273,102 @@ function ArticleView() {
     }
   };
 
+  // EFFECT: Handle text selection for popover
+  useEffect(() => {
+    const contentElement = contentRef.current;
+
+    const handleMouseUp = () => {
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+
+        // Check if the selection is within the article content
+        if (
+          contentElement &&
+          contentElement.contains(range.commonAncestorContainer)
+        ) {
+          const rects = Array.from(range.getClientRects()).map((rect) => ({
+            top: rect.top + window.scrollY, // Adjust for page scroll
+            left: rect.left + window.scrollX,
+            width: rect.width,
+            height: rect.height,
+          }));
+
+          if (rects.length > 0) {
+            const firstRect = rects[0];
+            setPopoverAnchorRect({
+              top: firstRect.top - 10, // Position above the first line
+              left: firstRect.left + firstRect.width / 2,
+              width: 1, // Anchor can be minimal
+              height: 1,
+            });
+            setSelectionRects(rects);
+            setCurrentSelectionRange(range);
+            setIsPopoverOpen(true);
+            selection.removeAllRanges(); // Clear browser's default highlight
+          } else {
+            setIsPopoverOpen(false);
+            setSelectionRects([]);
+          }
+        } else {
+          // Selection is outside the content area
+          if (isPopoverOpen) {
+            setIsPopoverOpen(false);
+            setSelectionRects([]);
+          }
+        }
+      } else {
+        // No selection or selection collapsed
+        if (isPopoverOpen) {
+          // Only close if it was open
+          setIsPopoverOpen(false);
+          setSelectionRects([]);
+        }
+      }
+    };
+
+    if (contentElement) {
+      contentElement.addEventListener("mouseup", handleMouseUp);
+    }
+
+    return () => {
+      if (contentElement) {
+        contentElement.removeEventListener("mouseup", handleMouseUp);
+      }
+    };
+  }, [article, isPopoverOpen]); // Rerun if article changes or popover state (to ensure cleanup if an external event closes it)
+
+  // EFFECT: Handle clicks outside to close popover
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
+        // Check if the click is also outside the content area to avoid immediate re-triggering
+        if (contentRef.current && !contentRef.current.contains(event.target)) {
+          setIsPopoverOpen(false);
+          setSelectionRects([]);
+        } else {
+          // If click is inside content but not on popover, it might be a new selection attempt or text de-selection
+          const selection = window.getSelection();
+          if (
+            !selection ||
+            selection.isCollapsed ||
+            selection.rangeCount === 0
+          ) {
+            setIsPopoverOpen(false);
+            setSelectionRects([]);
+          }
+        }
+      }
+    };
+
+    if (isPopoverOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isPopoverOpen]);
+
   if (loading) {
     return <ArticleViewSkeleton />; // Use the skeleton component
   }
@@ -302,233 +414,296 @@ function ArticleView() {
   };
 
   return (
-    // Overall page container - handles vertical layout and overall page scrolling
-    // Add a top margin to push content below the fixed header
-    // Adjusted mt value slightly to account for increased header height
-    <div className="flex flex-col items-center mt-[72px] pb-16 min-h-screen">
-      {" "}
-      {/* Adjusted mt-[68px] to mt-[72px] */}
-      {/* Fixed Article Nav Bar - Explicit height set, py-4 removed, px-4 kept */}
-      <div className="fixed top-0 w-full bg-white border-b border-gray-200 z-20 flex items-center justify-center h-16 px-4">
-        {" "}
-        {/* Reading progress bar - Moved inside the header, positioned at the bottom */}
-        <div
-          className="absolute bottom-0 left-0 h-1 bg-orange-500 z-30"
-          style={{ width: `${readingProgress}%` }}
-        ></div>
-        {/* Left section: Back button - Positioned absolutely to the left */}
-        <button
-          onClick={() => navigate("/")}
-          className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors z-40"
-          aria-label="Back to Saves"
-        >
-          {/* Increased icon size */}
-          <ArrowLeft size={iconSize} className="text-gray-600" />
-        </button>
-        {/* Centered Action Icons Group */}
-        {/* This div will be absolutely centered */}
-        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center space-x-2 md:space-x-3 z-30">
-          {/* Favorite Button */}
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleFavoriteToggle}
-                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  aria-label={isFavorited ? "Unfavorite" : "Favorite"}
-                >
-                  <Star
-                    size={iconSize}
-                    className={
-                      isFavorited
-                        ? "text-yellow-500 fill-yellow-500"
-                        : "text-gray-600"
-                    }
-                  />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isFavorited ? "Unfavorite" : "Favorite"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+    <>
+      {/* Custom Orange Highlight Overlays */}
+      {isPopoverOpen &&
+        selectionRects.map((rect, index) => (
+          <div
+            key={`highlight-rect-${index}`}
+            style={{
+              position: "absolute",
+              top: `${rect.top}px`,
+              left: `${rect.left}px`,
+              width: `${rect.width}px`,
+              height: `${rect.height}px`,
+              backgroundColor: "rgba(255, 165, 0, 0.3)", // Semi-transparent orange
+              zIndex: 10, // Below popover, above article content
+              pointerEvents: "none", // Allow clicks to pass through to content if needed for other things
+            }}
+          />
+        ))}
 
-          {/* Tag Button - ADDED */}
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setIsTaggingDialogOpen(true)}
-                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  aria-label="Tag article"
-                >
-                  <Tag size={iconSize} className="text-gray-600" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Tag article</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          {/* Highlight/Tag Button (Placeholder) */}
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => console.log("Highlight/Tag clicked")}
-                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  aria-label="Add highlight or tag"
-                >
-                  <Highlighter size={iconSize} className="text-gray-600" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Highlight/Tag (Soon)</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          {/* Archive Button */}
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleArchiveToggle}
-                  className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                  aria-label={isRead ? "Unarchive" : "Archive"}
-                >
-                  {isRead ? (
-                    <BookUp size={iconSize} className="text-orange-500" />
-                  ) : (
-                    <BookDown size={iconSize} className="text-gray-600" />
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{isRead ? "Move to Saves" : "Archive"}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          {/* Delete Button with Dialog */}
-          <Dialog
-            open={isDeleteDialogOpen}
-            onOpenChange={setIsDeleteDialogOpen}
+      {/* Popover for Text Selection */}
+      {isPopoverOpen && popoverAnchorRect && (
+        <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+          <PopoverAnchor
+            style={{
+              position: "absolute",
+              top: `${popoverAnchorRect.top}px`,
+              left: `${popoverAnchorRect.left}px`,
+              width: `${popoverAnchorRect.width}px`,
+              height: `${popoverAnchorRect.height}px`,
+            }}
+          />
+          <PopoverContent
+            ref={popoverRef}
+            className="w-auto p-2 shadow-xl rounded-md border bg-white z-50"
+            sideOffset={5}
+            align="center"
+            onCloseAutoFocus={(e) => e.preventDefault()} // Prevent focus issues on close
           >
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center space-x-1"
+              >
+                <HighlighterIcon size={16} />
+                <span>Highlight</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center space-x-1"
+              >
+                <ShareIcon size={16} />
+                <span>Share</span>
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+
+      {/* Overall page container - handles vertical layout and overall page scrolling */}
+      {/* Add a top margin to push content below the fixed header */}
+      {/* Adjusted mt value slightly to account for increased header height */}
+      <div className="flex flex-col items-center mt-[72px] pb-16 min-h-screen">
+        {" "}
+        {/* Adjusted mt-[68px] to mt-[72px] */}
+        {/* Fixed Article Nav Bar - Explicit height set, py-4 removed, px-4 kept */}
+        <div className="fixed top-0 w-full bg-white border-b border-gray-200 z-20 flex items-center justify-center h-16 px-4">
+          {" "}
+          {/* Reading progress bar - Moved inside the header, positioned at the bottom */}
+          <div
+            className="absolute bottom-0 left-0 h-1 bg-orange-500 z-30"
+            style={{ width: `${readingProgress}%` }}
+          ></div>
+          {/* Left section: Back button - Positioned absolutely to the left */}
+          <button
+            onClick={() => navigate("/")}
+            className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors z-40"
+            aria-label="Back to Saves"
+          >
+            {/* Increased icon size */}
+            <ArrowLeft size={iconSize} className="text-gray-600" />
+          </button>
+          {/* Centered Action Icons Group */}
+          {/* This div will be absolutely centered */}
+          <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center space-x-2 md:space-x-3 z-30">
+            {/* Favorite Button */}
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <DialogTrigger asChild>
-                    <button
-                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                      aria-label="Delete article"
-                    >
-                      <Trash2 size={iconSize} className="text-gray-600" />
-                    </button>
-                  </DialogTrigger>
+                  <button
+                    onClick={handleFavoriteToggle}
+                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    aria-label={isFavorited ? "Unfavorite" : "Favorite"}
+                  >
+                    <Star
+                      size={iconSize}
+                      className={
+                        isFavorited
+                          ? "text-yellow-500 fill-yellow-500"
+                          : "text-gray-600"
+                      }
+                    />
+                  </button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Delete</p>
+                  <p>{isFavorited ? "Unfavorite" : "Favorite"}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Confirm Deletion</DialogTitle>
-                <DialogDescription>
-                  Are you sure you want to delete this article? This action
-                  cannot be undone.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <DialogClose asChild>
-                  <Button variant="outline">Cancel</Button>
-                </DialogClose>
-                <Button variant="destructive" onClick={handleDeleteArticle}>
-                  Delete
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>{" "}
-        {/* End of Centered Action Icons Group */}
-        {/* Right section: Placeholder to balance the back button */}
-        {/* Adjusted width slightly as two icons were removed */}
-        <div className="w-10 flex-shrink-0"></div> {/* Placeholder div */}
-      </div>
-      {/* Article content container - wraps title, byline, and main content */}
-      {/* Apply max-width and center horizontally */}
-      {/* Added ref here for scroll height measurement */}
-      <div
-        ref={contentRef}
-        className="max-w-[718px] mx-auto w-full pt-2 sm:pt-16 pb-16 sm:pb-24 px-2"
-      >
-        {/* Article Title */}
-        <div className="text-center mb-3 px-2 sm:px-[40px]">
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 tracking-tight leading-tight">
-            {article.title}
-          </h1>
-        </div>
 
-        {/* Byline, Source URL, Reading Time, and View Original Link */}
-        <div className="text-center text-sm text-gray-500 mb-10 md:mb-12 px-2 sm:px-[40px]">
-          {article.byline && <span className="mr-2">By {article.byline}</span>}
-          {article.byline && article.url && <span className="mr-2">·</span>}
-          {article.url && (
-            <span className="mr-2">{getBaseUrl(article.url)}</span>
-          )}
-          {(article.byline || article.url) &&
-            (article.content || article.excerpt) && (
-              <span className="mr-2">·</span>
+            {/* Tag Button - ADDED */}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setIsTaggingDialogOpen(true)}
+                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    aria-label="Tag article"
+                  >
+                    <Tag size={iconSize} className="text-gray-600" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Tag article</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* Highlight/Tag Button (Placeholder) */}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => console.log("Highlight/Tag clicked")}
+                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    aria-label="Add highlight or tag"
+                  >
+                    <Highlighter size={iconSize} className="text-gray-600" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Highlight/Tag (Soon)</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* Archive Button */}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleArchiveToggle}
+                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    aria-label={isRead ? "Unarchive" : "Archive"}
+                  >
+                    {isRead ? (
+                      <BookUp size={iconSize} className="text-orange-500" />
+                    ) : (
+                      <BookDown size={iconSize} className="text-gray-600" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{isRead ? "Move to Saves" : "Archive"}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
+            {/* Delete Button with Dialog */}
+            <Dialog
+              open={isDeleteDialogOpen}
+              onOpenChange={setIsDeleteDialogOpen}
+            >
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DialogTrigger asChild>
+                      <button
+                        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                        aria-label="Delete article"
+                      >
+                        <Trash2 size={iconSize} className="text-gray-600" />
+                      </button>
+                    </DialogTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Delete</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirm Deletion</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete this article? This action
+                    cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <Button variant="destructive" onClick={handleDeleteArticle}>
+                    Delete
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>{" "}
+          {/* End of Centered Action Icons Group */}
+          {/* Right section: Placeholder to balance the back button */}
+          {/* Adjusted width slightly as two icons were removed */}
+          <div className="w-10 flex-shrink-0"></div> {/* Placeholder div */}
+        </div>
+        {/* Article content container - wraps title, byline, and main content */}
+        {/* Apply max-width and center horizontally */}
+        {/* Added ref here for scroll height measurement */}
+        <div
+          ref={contentRef}
+          className="max-w-[718px] mx-auto w-full pt-2 sm:pt-16 pb-16 sm:pb-24 px-2"
+        >
+          {/* Article Title */}
+          <div className="text-center mb-3 px-2 sm:px-[40px]">
+            <h1 className="text-3xl sm:text-4xl font-bold text-gray-800 tracking-tight leading-tight">
+              {article.title}
+            </h1>
+          </div>
+
+          {/* Byline, Source URL, Reading Time, and View Original Link */}
+          <div className="text-center text-sm text-gray-500 mb-10 md:mb-12 px-2 sm:px-[40px]">
+            {article.byline && (
+              <span className="mr-2">By {article.byline}</span>
             )}
-          {(article.content || article.excerpt) && (
-            <span>
-              {calculateReadingTime(article.content || article.excerpt)}
-            </span>
-          )}
-          {article.url && (
-            <div className="mt-3">
-              <a
-                href={article.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-orange-500 hover:text-orange-600 transition-colors"
-              >
-                View Original
-                <ExternalLink size={16} className="ml-1" />
-              </a>
+            {article.byline && article.url && <span className="mr-2">·</span>}
+            {article.url && (
+              <span className="mr-2">{getBaseUrl(article.url)}</span>
+            )}
+            {(article.byline || article.url) &&
+              (article.content || article.excerpt) && (
+                <span className="mr-2">·</span>
+              )}
+            {(article.content || article.excerpt) && (
+              <span>
+                {calculateReadingTime(article.content || article.excerpt)}
+              </span>
+            )}
+            {article.url && (
+              <div className="mt-3">
+                <a
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-orange-500 hover:text-orange-600 transition-colors"
+                >
+                  View Original
+                  <ExternalLink size={16} className="ml-1" />
+                </a>
+              </div>
+            )}
+          </div>
+
+          {/* Lead Image - Added Here */}
+          {article.lead_image_url && (
+            <div className="px-2 sm:px-[40px] mb-8 md:mb-10">
+              <img
+                src={article.lead_image_url}
+                alt={article.title || "Article lead image"}
+                className="w-full h-auto object-cover rounded-lg shadow-md"
+              />
             </div>
           )}
+
+          {/* Main Article content */}
+          <div
+            className="max-w-none text-left px-2 sm:px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-orange-500 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
+            dangerouslySetInnerHTML={{ __html: article.content }}
+          />
         </div>
-
-        {/* Lead Image - Added Here */}
-        {article.lead_image_url && (
-          <div className="px-2 sm:px-[40px] mb-8 md:mb-10">
-            <img
-              src={article.lead_image_url}
-              alt={article.title || "Article lead image"}
-              className="w-full h-auto object-cover rounded-lg shadow-md"
-            />
-          </div>
+        {/* Tagging Dialog - ADDED */}
+        {article && (
+          <TaggingDialog
+            isOpen={isTaggingDialogOpen}
+            onOpenChange={setIsTaggingDialogOpen}
+            articleId={article.id}
+            userId={user?.id}
+          />
         )}
-
-        {/* Main Article content */}
-        <div
-          className="max-w-none text-left px-2 sm:px-[40px] prose prose-lg prose-gray mx-auto prose-headings:font-semibold prose-headings:text-gray-800 prose-p:text-gray-700 prose-p:leading-relaxed prose-p:mb-4 prose-a:font-medium prose-strong:text-gray-900 prose-em:text-gray-700 prose-blockquote:border-l-orange-500 prose-blockquote:text-gray-600 prose-code:text-gray-900 prose-code:bg-gray-100 prose-img:rounded-lg prose-img:shadow-md"
-          dangerouslySetInnerHTML={{ __html: article.content }}
-        />
       </div>
-      {/* Tagging Dialog - ADDED */}
-      {article && (
-        <TaggingDialog
-          isOpen={isTaggingDialogOpen}
-          onOpenChange={setIsTaggingDialogOpen}
-          articleId={article.id}
-          userId={user?.id}
-        />
-      )}
-    </div>
+    </>
   );
 }
 
