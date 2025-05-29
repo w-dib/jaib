@@ -19,7 +19,8 @@ export default defineConfig({
       manifest: {
         name: "Jaib",
         short_name: "Jaib",
-        description: "Jaib - Read and save articles",
+        description:
+          "A simple application to save articles and read them later.",
         theme_color: "#ffffff",
         icons: [
           {
@@ -42,11 +43,10 @@ export default defineConfig({
         share_target: {
           action: "/save-article-shared",
           method: "GET",
-          enctype: "application/x-www-form-urlencoded",
           params: {
-            title: "title",
-            text: "text",
-            url: "url",
+            title: ["title", "name", "subject"],
+            text: ["text", "description"],
+            url: ["url", "link"],
           },
         },
       },
