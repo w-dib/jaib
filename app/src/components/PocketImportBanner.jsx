@@ -330,23 +330,28 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
   };
 
   const handleDismissPermanently = (e) => {
-    e.stopPropagation(); // Prevent click from propagating to the banner's onClick
+    e.stopPropagation();
     localStorage.setItem("hidePocketImportBannerPermanently", "true");
     setBannerVisible(false);
+    setShowUploadArea(false); // Also hide upload area if shown
+    if (isInsideModal && onReturnToChoice) {
+      onReturnToChoice(); // If in modal, also navigate back to choice
+    }
+  };
+
+  const handleCloseUploadAreaAndSessionDismiss = () => {
+    if (isInsideModal && onReturnToChoice) {
+      onReturnToChoice(); // Go back to choice view in parent modal
+    } else {
+      setBannerVisible(false); // Hides for current session only
+      setShowUploadArea(false); // Standard behavior if not in modal
+    }
   };
 
   const handleBannerClick = () => {
     // This function is only relevant if not inside a modal, as the banner isn't shown in modal mode.
     if (!isInsideModal) {
       setShowUploadArea(true);
-    }
-  };
-
-  const handleCloseUploadArea = () => {
-    if (isInsideModal && onReturnToChoice) {
-      onReturnToChoice(); // Go back to choice view in parent modal
-    } else {
-      setShowUploadArea(false); // Standard behavior if not in modal
     }
   };
 
@@ -422,18 +427,44 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
           <h2 className="text-xl font-semibold text-gray-800">
             Import Pocket Articles
           </h2>
-          <button
-            onClick={() => {
-              if (isImporting) return;
-              // If inside modal, closing the upload area should go back to choice view
-              handleCloseUploadArea();
-            }}
-            className="text-gray-500 hover:text-gray-700 disabled:opacity-50"
-            aria-label="Close import area"
-            disabled={isImporting}
-          >
-            <X size={24} />
-          </button>
+          <TooltipProvider delayDuration={0}>
+            <div className="flex items-center space-x-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleDismissPermanently}
+                    className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-700"
+                    aria-label="Don't show Pocket Import again"
+                    disabled={isImporting}
+                  >
+                    <EyeOff size={20} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Don&apos;t show Pocket Import again</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleCloseUploadAreaAndSessionDismiss} // Use the new combined handler
+                    className="p-2 rounded-full text-gray-600 hover:bg-gray-100 hover:text-gray-700"
+                    aria-label="Close import area"
+                    disabled={isImporting}
+                  >
+                    <X size={24} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Close Importer</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
         </div>
 
         {!isImporting && (
@@ -534,12 +565,12 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
             <div
               {...getRootProps()}
               className={`p-8 border-2 border-dashed rounded-md text-center cursor-pointer
-                          ${
-                            isDragActive
-                              ? "border-orange-500 bg-orange-50"
-                              : "border-gray-300 hover:border-gray-400"
-                          }
-                          transition-colors`}
+                      ${
+                        isDragActive
+                          ? "border-orange-500 bg-orange-50"
+                          : "border-gray-300 hover:border-gray-400"
+                      }
+                      transition-colors`}
             >
               <input {...getInputProps()} />
               <UploadCloud size={48} className="mx-auto text-gray-400 mb-3" />
