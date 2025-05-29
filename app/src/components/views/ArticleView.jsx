@@ -66,6 +66,8 @@ function ArticleView() {
   const [selectionRects, setSelectionRects] = useState([]); // Stores DOMRects for drawing custom highlights
   const [currentSelectionRange, setCurrentSelectionRange] = useState(null);
   const popoverRef = useRef(null);
+  const [savedHighlights, setSavedHighlights] = useState([]); // State for persisted highlights
+  const [selectedTextContent, setSelectedTextContent] = useState(""); // State for the actual selected text
 
   useEffect(() => {
     if (article && article.title) {
@@ -273,6 +275,86 @@ function ArticleView() {
     }
   };
 
+  const handleSaveHighlight = async () => {
+    console.log("[handleSaveHighlight] Called");
+    console.log(
+      "[handleSaveHighlight] selectedTextContent from state:",
+      selectedTextContent
+    );
+    console.log("[handleSaveHighlight] article:", article);
+    console.log("[handleSaveHighlight] user:", user);
+
+    if (!article || !user) {
+      console.error("[handleSaveHighlight] Aborting: Missing article or user.");
+      return;
+    }
+
+    const selectedText = selectedTextContent.trim();
+    console.log(
+      "[handleSaveHighlight] selectedText (from state, trimmed):",
+      selectedText
+    );
+
+    if (!selectedText) {
+      console.warn(
+        "[handleSaveHighlight] Aborting: Selected text is empty after trim."
+      );
+      return; // Don't save empty selections
+    }
+
+    const selectorInfo = {
+      type: "text-quote",
+      quote: selectedText,
+    };
+
+    const annotationData = {
+      article_id: article.id,
+      user_id: user.id,
+      selector_info: selectorInfo,
+      note: selectedText,
+    };
+    console.log(
+      "[handleSaveHighlight] Attempting to save to Supabase with data:",
+      annotationData
+    );
+
+    try {
+      const { data, error } = await supabase
+        .from("annotations")
+        .insert([annotationData])
+        .select()
+        .single();
+
+      console.log("[handleSaveHighlight] Supabase response data:", data);
+      console.log("[handleSaveHighlight] Supabase response error:", error);
+
+      if (error) {
+        console.error(
+          "[handleSaveHighlight] Error saving highlight to Supabase:",
+          error
+        );
+        return;
+      }
+
+      if (data) {
+        console.log("[handleSaveHighlight] Successfully saved. DB Data:", data);
+        setSavedHighlights((prevHighlights) => [
+          ...prevHighlights,
+          {
+            id: data.id,
+            rects: [...selectionRects],
+            text: selectedText,
+            selectorInfo: selectorInfo,
+          },
+        ]);
+        setIsPopoverOpen(false);
+        setSelectionRects([]);
+      }
+    } catch (e) {
+      console.error("[handleSaveHighlight] Exception during Supabase call:", e);
+    }
+  };
+
   // EFFECT: Handle text selection for popover
   useEffect(() => {
     const contentElement = contentRef.current;
@@ -296,8 +378,11 @@ function ArticleView() {
 
           if (rects.length > 0) {
             const firstRect = rects[0];
+            const textContent = range.toString(); // Get text content here
+            setSelectedTextContent(textContent); // Store it in state
+
             setPopoverAnchorRect({
-              top: firstRect.top - 10, // Position above the first line
+              top: firstRect.top - 64, // Adjusted: original 10px offset + 32px (for pt-8 equivalent)
               left: firstRect.left + firstRect.width / 2,
               width: 1, // Anchor can be minimal
               height: 1,
@@ -415,23 +500,42 @@ function ArticleView() {
 
   return (
     <>
-      {/* Custom Orange Highlight Overlays */}
+      {/* Custom Orange Highlight Overlays (Temporary Selection) */}
       {isPopoverOpen &&
         selectionRects.map((rect, index) => (
           <div
-            key={`highlight-rect-${index}`}
+            key={`temp-highlight-rect-${index}`}
             style={{
               position: "absolute",
               top: `${rect.top}px`,
               left: `${rect.left}px`,
               width: `${rect.width}px`,
               height: `${rect.height}px`,
-              backgroundColor: "rgba(255, 165, 0, 0.3)", // Semi-transparent orange
-              zIndex: 10, // Below popover, above article content
-              pointerEvents: "none", // Allow clicks to pass through to content if needed for other things
+              backgroundColor: "rgba(255, 165, 0, 0.3)", // Lighter orange for temporary
+              zIndex: 10,
+              pointerEvents: "none",
             }}
           />
         ))}
+
+      {/* Saved Highlight Overlays */}
+      {savedHighlights.map((highlight) =>
+        highlight.rects.map((rect, index) => (
+          <div
+            key={`saved-highlight-${highlight.id}-rect-${index}`}
+            style={{
+              position: "absolute",
+              top: `${rect.top}px`,
+              left: `${rect.left}px`,
+              width: `${rect.width}px`,
+              height: `${rect.height}px`,
+              backgroundColor: "rgba(239, 108, 0, 0.4)", // Darker orange for saved (Tailwind orange-600 equivalent at 40% opacity)
+              zIndex: 9, // Slightly below temporary highlight/popover if they were to overlap, but above content
+              pointerEvents: "none",
+            }}
+          />
+        ))
+      )}
 
       {/* Popover for Text Selection */}
       {isPopoverOpen && popoverAnchorRect && (
@@ -457,6 +561,7 @@ function ArticleView() {
                 variant="ghost"
                 size="sm"
                 className="flex items-center space-x-1"
+                onClick={handleSaveHighlight}
               >
                 <HighlighterIcon size={16} />
                 <span>Highlight</span>
