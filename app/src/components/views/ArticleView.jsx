@@ -41,7 +41,7 @@ import {
   PopoverContent,
   PopoverAnchor,
 } from "../../../components/ui/popover"; // Added Popover imports
-import ArticleViewSkeleton from "../ArticleViewSkeleton"; // Added import for skeleton
+import Skeleton from "../Skeleton"; // Added import for skeleton
 import TaggingDialog from "./TaggingDialog"; // IMPORTED: For Tagging Dialog
 
 function ArticleView() {
@@ -64,7 +64,6 @@ function ArticleView() {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [popoverAnchorRect, setPopoverAnchorRect] = useState(null); // Stores { top, left, width, height } for PopoverAnchor
   const [selectionRects, setSelectionRects] = useState([]); // Stores DOMRects for drawing custom highlights
-  const [currentSelectionRange, setCurrentSelectionRange] = useState(null);
   const popoverRef = useRef(null);
   const [savedHighlights, setSavedHighlights] = useState([]); // State for persisted highlights
   const [selectedTextContent, setSelectedTextContent] = useState(""); // State for the actual selected text
@@ -247,7 +246,7 @@ function ArticleView() {
       }
 
       console.log(
-        "[ArticleView] Attempting to load saved annotations for article:",
+        "[] Attempting to load saved annotations for article:",
         article.id
       );
 
@@ -264,7 +263,7 @@ function ArticleView() {
         }
 
         if (annotations && annotations.length > 0) {
-          console.log("[ArticleView] Fetched annotations:", annotations);
+          console.log("[] Fetched annotations:", annotations);
           const processedHighlights = [];
           for (const ann of annotations) {
             if (ann.note) {
@@ -283,7 +282,7 @@ function ArticleView() {
             }
           }
           console.log(
-            "[ArticleView] Processed highlights for display:",
+            "[] Processed highlights for display:",
             processedHighlights
           );
           setSavedHighlights(processedHighlights);
@@ -463,56 +462,58 @@ function ArticleView() {
     const contentElement = contentRef.current;
 
     const handleTextSelectionEnd = () => {
-      const selection = window.getSelection();
-      if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
+      setTimeout(() => {
+        // Defer execution
+        const selection = window.getSelection();
+        if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
 
-        // Check if the selection is within the article content
-        if (
-          contentElement &&
-          contentElement.contains(range.commonAncestorContainer)
-        ) {
-          const rects = Array.from(range.getClientRects()).map((rect) => ({
-            top: rect.top + window.scrollY, // Adjust for page scroll
-            left: rect.left + window.scrollX,
-            width: rect.width,
-            height: rect.height,
-          }));
+          // Check if the selection is within the article content
+          if (
+            contentElement &&
+            contentElement.contains(range.commonAncestorContainer)
+          ) {
+            const rects = Array.from(range.getClientRects()).map((rect) => ({
+              top: rect.top + window.scrollY, // Adjust for page scroll
+              left: rect.left + window.scrollX,
+              width: rect.width,
+              height: rect.height,
+            }));
 
-          if (rects.length > 0) {
-            const firstRect = rects[0];
-            const textContent = range.toString(); // Get text content here
-            setSelectedTextContent(textContent); // Store it in state
+            if (rects.length > 0) {
+              const firstRect = rects[0];
+              const textContent = range.toString(); // Get text content here
+              setSelectedTextContent(textContent); // Store it in state
 
-            setPopoverAnchorRect({
-              top: firstRect.top - 64, // Adjusted: original 10px offset + 32px (for pt-8 equivalent)
-              left: firstRect.left + firstRect.width / 2,
-              width: 1, // Anchor can be minimal
-              height: 1,
-            });
-            setSelectionRects(rects);
-            setCurrentSelectionRange(range);
-            setIsPopoverOpen(true);
-            // selection.removeAllRanges(); // Clear browser's default highlight
+              setPopoverAnchorRect({
+                top: firstRect.top - 64, // Adjusted: original 10px offset + 32px (for pt-8 equivalent)
+                left: firstRect.left + firstRect.width / 2,
+                width: 1, // Anchor can be minimal
+                height: 1,
+              });
+              setSelectionRects(rects);
+              setIsPopoverOpen(true);
+              // selection.removeAllRanges(); // Clear browser's default highlight
+            } else {
+              setIsPopoverOpen(false);
+              setSelectionRects([]);
+            }
           } else {
-            setIsPopoverOpen(false);
-            setSelectionRects([]);
+            // Selection is outside the content area
+            if (isPopoverOpen) {
+              setIsPopoverOpen(false);
+              setSelectionRects([]);
+            }
           }
         } else {
-          // Selection is outside the content area
+          // No selection or selection collapsed
           if (isPopoverOpen) {
+            // Only close if it was open
             setIsPopoverOpen(false);
             setSelectionRects([]);
           }
         }
-      } else {
-        // No selection or selection collapsed
-        if (isPopoverOpen) {
-          // Only close if it was open
-          setIsPopoverOpen(false);
-          setSelectionRects([]);
-        }
-      }
+      }, 0); // End of setTimeout
     };
 
     if (contentElement) {
@@ -560,7 +561,7 @@ function ArticleView() {
   }, [isPopoverOpen]);
 
   if (loading) {
-    return <ArticleViewSkeleton />; // Use the skeleton component
+    return <Skeleton />; // Use the skeleton component
   }
 
   if (error) {
