@@ -44,9 +44,9 @@ export default defineConfig({
           action: "/save-article-shared",
           method: "GET",
           params: {
-            title: ["title", "name", "subject"],
-            text: ["text", "description"],
-            url: ["url", "link"],
+            title: "title",
+            text: "text",
+            url: "url",
           },
         },
       },
