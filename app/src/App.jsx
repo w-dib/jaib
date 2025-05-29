@@ -21,6 +21,8 @@ import LogoutHandler from "./components/views/LogoutHandler";
 import PocketImportBanner from "./components/PocketImportBanner";
 import TagsPage from "./pages/TagsPage";
 import SharedArticleHandler from "./components/views/SharedArticleHandler";
+import TermsOfServicePage from "./pages/TermsOfServicePage";
+import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 
 function App() {
   return (
@@ -41,28 +43,37 @@ function AppLayout() {
     setRefreshKey((prevKey) => prevKey + 1);
   };
 
-  const showNavbarPaths = ["/", "/favorites", "/archives", "/tags"];
+  // Paths accessible when logged out (in addition to LandingPage at root)
+  const publicPaths = ["/terms", "/privacy", "/auth/callback"];
+  const saveArticlePath = "/save-article";
 
+  const showNavbarPaths = ["/", "/favorites", "/archives", "/tags"];
   const isMainViewWithNavbar = showNavbarPaths.includes(location.pathname);
 
   if (!user) {
-    if (location.pathname.startsWith("/save-article")) {
+    // Allow direct access to public paths like /terms, /privacy, /auth/callback
+    if (publicPaths.includes(location.pathname)) {
+      return (
+        <Routes>
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+        </Routes>
+      );
+    }
+    // Allow /save-article path
+    if (location.pathname.startsWith(saveArticlePath)) {
       return (
         <Routes>
           <Route path="/save-article" element={<SaveArticleHandler />} />
         </Routes>
       );
     }
-    if (location.pathname === "/auth/callback") {
-      return (
-        <Routes>
-          <Route path="/auth/callback" element={<AuthCallback />} />
-        </Routes>
-      );
-    }
+    // For any other path when not logged in, show LandingPage
     return <LandingPage />;
   }
 
+  // If user is logged in, render the full app layout
   return (
     <div className="flex flex-col min-h-screen">
       {isMainViewWithNavbar && (
@@ -105,6 +116,8 @@ function AppLayout() {
         <Route path="/save-article" element={<SaveArticleHandler />} />
         <Route path="/save-article-shared" element={<SharedArticleHandler />} />
         <Route path="/logout" element={<LogoutHandler />} />
+        <Route path="/terms" element={<TermsOfServicePage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
       </Routes>
     </div>
   );

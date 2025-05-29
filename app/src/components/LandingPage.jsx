@@ -201,6 +201,20 @@ export function LandingPage() {
               )}
             </Button>
           </form>
+
+          {/* Terms and Privacy Policy Text - ADDED */}
+          <div className="mt-6 text-center">
+            <p className="text-xs text-muted-foreground">
+              By continuing you agree to the{" "}
+              <a href="/terms" className="underline hover:text-foreground">
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" className="underline hover:text-foreground">
+                Privacy Policy
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </div>
