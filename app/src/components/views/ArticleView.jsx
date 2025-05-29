@@ -69,6 +69,47 @@ function ArticleView() {
   const [savedHighlights, setSavedHighlights] = useState([]); // State for persisted highlights
   const [selectedTextContent, setSelectedTextContent] = useState(""); // State for the actual selected text
 
+  // Helper function to find text in DOM and return its rects
+  // For simplicity with current selector_info, this finds the FIRST match.
+  const findTextRectsInDOM = (containerElement, searchText) => {
+    if (!containerElement || !searchText || typeof searchText !== "string")
+      return [];
+    const walker = document.createTreeWalker(
+      containerElement,
+      NodeFilter.SHOW_TEXT,
+      null,
+      false
+    );
+    let node;
+
+    while ((node = walker.nextNode())) {
+      const index = node.nodeValue.indexOf(searchText);
+      if (index !== -1) {
+        const range = document.createRange();
+        try {
+          range.setStart(node, index);
+          range.setEnd(node, index + searchText.length);
+          const rects = Array.from(range.getClientRects()).map((rect) => ({
+            top: rect.top + window.scrollY,
+            left: rect.left + window.scrollX,
+            width: rect.width,
+            height: rect.height,
+          }));
+          if (rects.length > 0) {
+            return rects; // Return rects for the first match
+          }
+        } catch (e) {
+          console.error("Error creating range for saved highlight:", e, {
+            searchText,
+            nodeValue: node.nodeValue,
+          });
+          return []; // Stop if an error occurs for this node/text
+        }
+      }
+    }
+    return []; // Return empty if not found after checking all nodes
+  };
+
   useEffect(() => {
     if (article && article.title) {
       document.title = `Jaib - ${article.title}`;
@@ -196,6 +237,68 @@ function ArticleView() {
       }
     };
   }, [user, article, readingProgress, supabase]); // Dependencies for the cleanup effect
+
+  // EFFECT: Load saved highlights when article is loaded
+  useEffect(() => {
+    const loadSavedAnnotations = async () => {
+      if (!article || !article.id || !user || !user.id || !contentRef.current) {
+        // Ensure contentRef.current is also available for findTextRectsInDOM
+        return;
+      }
+
+      console.log(
+        "[ArticleView] Attempting to load saved annotations for article:",
+        article.id
+      );
+
+      try {
+        const { data: annotations, error } = await supabase
+          .from("annotations")
+          .select("*")
+          .eq("article_id", article.id)
+          .eq("user_id", user.id);
+
+        if (error) {
+          console.error("Error fetching saved annotations:", error);
+          return;
+        }
+
+        if (annotations && annotations.length > 0) {
+          console.log("[ArticleView] Fetched annotations:", annotations);
+          const processedHighlights = [];
+          for (const ann of annotations) {
+            if (ann.note) {
+              // ann.note stores the highlighted text (quote)
+              // Ensure the DOM is likely ready. A small timeout might be more robust
+              // but for now, we assume contentRef.current is populated when this effect runs after article load.
+              const rects = findTextRectsInDOM(contentRef.current, ann.note);
+              if (rects.length > 0) {
+                processedHighlights.push({
+                  id: ann.id,
+                  rects: rects,
+                  text: ann.note,
+                  selectorInfo: ann.selector_info, // Keep original selector_info
+                });
+              }
+            }
+          }
+          console.log(
+            "[ArticleView] Processed highlights for display:",
+            processedHighlights
+          );
+          setSavedHighlights(processedHighlights);
+        }
+      } catch (err) {
+        console.error("Exception loading saved annotations:", err);
+      }
+    };
+
+    // Call this after a brief delay to give dangerouslySetInnerHTML time to render
+    // especially if article content is large.
+    const timerId = setTimeout(loadSavedAnnotations, 100);
+
+    return () => clearTimeout(timerId); // Cleanup timeout
+  }, [article, user, supabase]); // Rerun if article or user changes
 
   // Recalculate progress when article loads
   useEffect(() => {
