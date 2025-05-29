@@ -1,11 +1,25 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import Papa from "papaparse";
-import { UploadCloud, X, Loader2, Gem, Zap, CheckCircle2 } from "lucide-react";
+import {
+  UploadCloud,
+  X,
+  Loader2,
+  Gem,
+  Zap,
+  CheckCircle2,
+  EyeOff,
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../../components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../components/ui/tooltip";
 
 function PocketImportBanner() {
   const [showUploadArea, setShowUploadArea] = useState(false);
@@ -27,6 +41,13 @@ function PocketImportBanner() {
 
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  // Check localStorage on mount to see if banner should be hidden permanently
+  useEffect(() => {
+    if (localStorage.getItem("hidePocketImportBannerPermanently") === "true") {
+      setBannerVisible(false);
+    }
+  }, []);
 
   const onDrop = useCallback((acceptedFiles) => {
     setParseError(null);
@@ -301,6 +322,12 @@ function PocketImportBanner() {
     }, 1000); // Delay before setting isImporting to false and deciding on navigation
   };
 
+  const handleDismissPermanently = (e) => {
+    e.stopPropagation(); // Prevent click from propagating to the banner's onClick
+    localStorage.setItem("hidePocketImportBannerPermanently", "true");
+    setBannerVisible(false);
+  };
+
   if (!bannerVisible) {
     if (!showUploadArea) {
       return null;
@@ -324,16 +351,42 @@ function PocketImportBanner() {
             import your URLs from Pocket.
           </p>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setBannerVisible(false);
-          }}
-          className="text-slate-400 hover:text-slate-600 ml-3 flex-shrink-0"
-          aria-label="Dismiss banner"
-        >
-          <X size={18} />
-        </button>
+        <TooltipProvider delayDuration={0}>
+          <div className="flex items-center ml-3 flex-shrink-0">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleDismissPermanently}
+                  className="text-slate-400 hover:text-slate-600 mr-2"
+                  aria-label="Don't show again"
+                >
+                  <EyeOff size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Don&apos;t show again</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setBannerVisible(false); // Hides for current session only
+                  }}
+                  className="text-slate-400 hover:text-slate-600"
+                  aria-label="Dismiss banner for this session"
+                >
+                  <X size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Dismiss for this session</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
       </div>
     );
   }
