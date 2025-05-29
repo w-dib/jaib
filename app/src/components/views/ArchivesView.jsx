@@ -112,8 +112,8 @@ function ArchivesView({ refreshKey }) {
     }
   };
 
-  const handleSortToggle = () => {
-    setSortOrder((prevOrder) => (prevOrder === "asc" ? "desc" : "asc"));
+  const handleSetSortOrder = (newOrder) => {
+    setSortOrder(newOrder);
     setCurrentPage(1); // Reset to first page on sort change
   };
 
@@ -199,7 +199,7 @@ function ArchivesView({ refreshKey }) {
         articles={articles}
         onArticleDeleted={handleArticleDeleted}
         onArticleArchived={handleArticleArchived}
-        onSortToggle={handleSortToggle}
+        onSetSortOrder={handleSetSortOrder}
         sortOrder={sortOrder}
       />
       {totalPages > 1 && (

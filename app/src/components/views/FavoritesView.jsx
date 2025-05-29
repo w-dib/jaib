@@ -123,8 +123,8 @@ function FavoritesView({ refreshKey }) {
     }
   };
 
-  const handleSortToggle = () => {
-    setSortOrder((prevOrder) => (prevOrder === "asc" ? "desc" : "asc"));
+  const handleSetSortOrder = (newOrder) => {
+    setSortOrder(newOrder);
     setCurrentPage(1);
   };
 
@@ -211,7 +211,7 @@ function FavoritesView({ refreshKey }) {
         onArticleDeleted={handleArticleDeleted}
         onArticleArchived={handleArticleArchived}
         onArticleFavorited={handleArticleFavorited}
-        onSortToggle={handleSortToggle}
+        onSetSortOrder={handleSetSortOrder}
         sortOrder={sortOrder}
       />
       {totalPages > 1 && (

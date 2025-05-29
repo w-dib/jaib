@@ -493,7 +493,7 @@ function ArticleView() {
             setSelectionRects(rects);
             setCurrentSelectionRange(range);
             setIsPopoverOpen(true);
-            selection.removeAllRanges(); // Clear browser's default highlight
+            // selection.removeAllRanges(); // Clear browser's default highlight
           } else {
             setIsPopoverOpen(false);
             setSelectionRects([]);
