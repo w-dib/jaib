@@ -9,6 +9,7 @@ import {
   Zap,
   CheckCircle2,
   EyeOff,
+  AlertTriangle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
@@ -77,7 +78,7 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
             );
             return;
           }
-          const requiredFields = ["url", "status"];
+          const requiredFields = ["url", "status", "time_added"];
           const missingFields = requiredFields.filter(
             (field) =>
               !results.meta.fields || !results.meta.fields.includes(field)
@@ -100,6 +101,7 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
               url: row.url,
               status: row.status,
               originalIndex: index,
+              time_added: row.time_added,
             }))
             .filter(
               (article) =>
@@ -109,7 +111,9 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
                 article.status &&
                 typeof article.status === "string" &&
                 (article.status.toLowerCase() === "archive" ||
-                  article.status.toLowerCase() === "unread")
+                  article.status.toLowerCase() === "unread") &&
+                article.time_added &&
+                !isNaN(parseInt(article.time_added, 10))
             );
 
           setExtractedArticlesData(articles);
@@ -218,6 +222,11 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
         const parsedArticle = functionResponse;
         const is_read = articleData.status.toLowerCase() === "archive";
 
+        // Convert time_added (Unix timestamp) to ISO 8601 string for Supabase
+        const saved_at_iso = articleData.time_added
+          ? new Date(parseInt(articleData.time_added, 10) * 1000).toISOString()
+          : new Date().toISOString(); // Fallback to now() if time_added is missing/invalid
+
         // Step 2: Save to 'articles' table
         const { error: insertError } = await supabase.from("articles").insert({
           url: parsedArticle.url,
@@ -230,6 +239,7 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
           user_id: user.id,
           is_read: is_read,
           site_name: parsedArticle.siteName || parsedArticle.site_name || null,
+          saved_at: saved_at_iso, // Add the converted timestamp
         });
 
         if (insertError) {
@@ -634,6 +644,13 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
             <p className="text-center text-sm text-gray-500">
               {importProgress.toFixed(0)}%
             </p>
+            {/* Warning message about not closing the page */}
+            <div className="mt-3 flex items-center justify-center text-red-600">
+              <AlertTriangle size={20} className="mr-2" />
+              <p className="text-sm font-semibold">
+                Please do not close this page while the import is in progress.
+              </p>
+            </div>
           </div>
         )}
 

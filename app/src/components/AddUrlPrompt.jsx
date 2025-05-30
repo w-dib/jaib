@@ -12,6 +12,7 @@ import logo from "../assets/icon48.png";
 import { supabase } from "../lib/supabase"; // Added Supabase client
 import { useAuth } from "../contexts/AuthContext"; // Added Auth context
 import PocketImportBanner from "./PocketImportBanner"; // Import PocketImportBanner
+import { Link } from "react-router-dom"; // Import Link
 
 function AddUrlPrompt({ isOpen, onClose, onAdd }) {
   const [url, setUrl] = useState("");
@@ -19,6 +20,7 @@ function AddUrlPrompt({ isOpen, onClose, onAdd }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingError, setProcessingError] = useState(null);
   const [viewMode, setViewMode] = useState("choice"); // 'choice', 'singleUrl', 'bulkImport'
+  const [pocketImportKey, setPocketImportKey] = useState(0); // Key for resetting PocketImportBanner
 
   if (!isOpen) {
     return null;
@@ -106,6 +108,7 @@ function AddUrlPrompt({ isOpen, onClose, onAdd }) {
   const handleCloseAndReset = () => {
     resetLocalState();
     setViewMode("choice");
+    setPocketImportKey((prevKey) => prevKey + 1); // Increment key to force remount of PocketImportBanner
     onClose();
   };
 
@@ -113,18 +116,23 @@ function AddUrlPrompt({ isOpen, onClose, onAdd }) {
     <div className="fixed inset-0 bg-white z-[100] flex flex-col items-center">
       {/* Top Bar with Logo and Close Button */}
       <div className="w-full flex items-center justify-between p-4 border-b border-gray-200">
-        <div className="flex items-center space-x-2">
+        <Link
+          to="/"
+          onClick={handleCloseAndReset}
+          className="flex items-center space-x-2 text-gray-800 hover:text-orange-600 transition-colors"
+        >
           <img src={logo} alt="Jaib Logo" className="h-8 w-8" />
           <span className="text-xl font-bold">Jaib</span>
-        </div>
-        <button
-          onClick={handleCloseAndReset} // Use new handler
+        </Link>
+        <Link
+          to="/" // Navigate to main page
+          onClick={handleCloseAndReset} // Also close modal and reset state
           className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-          aria-label="Close"
+          aria-label="Close and go to main page"
           disabled={isProcessing} // Disable if single URL is processing, PocketImportBanner handles its own disabled state
         >
           <X size={24} className="text-gray-600" />
-        </button>
+        </Link>
       </div>
 
       {viewMode === "choice" && (
@@ -221,6 +229,7 @@ function AddUrlPrompt({ isOpen, onClose, onAdd }) {
             onClick={() => {
               resetLocalState();
               setViewMode("choice");
+              setPocketImportKey((prevKey) => prevKey + 1); // Increment key here too
             }}
             variant="ghost"
             className="mb-4 text-orange-500 hover:text-orange-600 self-start"
@@ -229,6 +238,7 @@ function AddUrlPrompt({ isOpen, onClose, onAdd }) {
             &larr; Back to Choices
           </Button>
           <PocketImportBanner
+            key={pocketImportKey} // Add the key prop here
             onReturnToChoice={handleReturnToChoice}
             isInsideModal={true} // Prop to indicate it's in a modal
           />
