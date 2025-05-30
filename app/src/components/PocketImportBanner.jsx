@@ -102,6 +102,7 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
               status: row.status,
               originalIndex: index,
               time_added: row.time_added,
+              is_favorite: row.is_favorite,
             }))
             .filter(
               (article) =>
@@ -227,6 +228,15 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
           ? new Date(parseInt(articleData.time_added, 10) * 1000).toISOString()
           : new Date().toISOString(); // Fallback to now() if time_added is missing/invalid
 
+        // Parse is_favorite, defaulting to false
+        let is_favorite_bool = false;
+        if (articleData.is_favorite) {
+          const favValue = String(articleData.is_favorite).toLowerCase();
+          if (favValue === "true" || favValue === "1" || favValue === "yes") {
+            is_favorite_bool = true;
+          }
+        }
+
         // Step 2: Save to 'articles' table
         const { error: insertError } = await supabase.from("articles").insert({
           url: parsedArticle.url,
@@ -239,7 +249,8 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
           user_id: user.id,
           is_read: is_read,
           site_name: parsedArticle.siteName || parsedArticle.site_name || null,
-          saved_at: saved_at_iso, // Add the converted timestamp
+          saved_at: saved_at_iso,
+          is_favorite: is_favorite_bool,
         });
 
         if (insertError) {

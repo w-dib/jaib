@@ -49,7 +49,7 @@ export default function ExtensionSetupDialog({ isOpen, onOpenChange }) {
       origin: { y: 0.5 }, // Centered origin
       zIndex: 9999, // Ensure it's on top
     });
-
+    localStorage.setItem("hasSeenExtensionSetupDialog", "true"); // Set flag
     onOpenChange(false);
     setTimeout(() => setCurrentStep(1), 300); // Reset step on close
   };
@@ -336,6 +336,13 @@ export default function ExtensionSetupDialog({ isOpen, onOpenChange }) {
                         Scroll and tap{" "}
                         <span className="font-medium">Add to Home Screen</span>.
                       </li>
+                      <li>
+                        <span className="font-bold text-orange-500">
+                          Quick Save:
+                        </span>{" "}
+                        Use the '+' button inside Jaib to save URLs on your
+                        iPhone. (Direct share from browser coming soon!)
+                      </li>
                     </ol>
                   </div>
 
@@ -359,6 +366,15 @@ export default function ExtensionSetupDialog({ isOpen, onOpenChange }) {
                         Select <span className="font-medium">Install app</span>{" "}
                         or{" "}
                         <span className="font-medium">Add to Home Screen</span>.
+                      </li>
+                      <li>
+                        <span className="font-bold text-orange-500">
+                          Quick Save:
+                        </span>{" "}
+                        When you find an article you like, tap Share in your
+                        browser or any app, and select{" "}
+                        <span className="font-medium">Jaib</span> —just like
+                        sharing to WhatsApp or Instagram.
                       </li>
                     </ol>
                   </div>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PlusSquare, Search, LogOut, Menu, HelpCircle } from "lucide-react";
 import { NavLink, Link } from "react-router-dom";
 import logo from "../assets/icon48.png";
@@ -39,6 +39,16 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isExtensionSetupOpen, setIsExtensionSetupOpen] = useState(false);
+
+  // Effect to show ExtensionSetupDialog on first login
+  useEffect(() => {
+    if (
+      user &&
+      localStorage.getItem("hasSeenExtensionSetupDialog") !== "true"
+    ) {
+      setIsExtensionSetupOpen(true);
+    }
+  }, [user]); // Dependency array includes user, so it runs when user state changes
 
   const handleSearch = (searchTerm) => {
     console.log("Searching for:", searchTerm);

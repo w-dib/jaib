@@ -24,6 +24,7 @@ import SharedArticleHandler from "./components/views/SharedArticleHandler";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import Footer from "./components/Footer";
+import HomePageLoggedOut from "./pages/HomePageLoggedOut";
 
 function App() {
   return (
@@ -53,6 +54,16 @@ function AppLayout() {
   const isArticleView = location.pathname.startsWith("/article/");
 
   if (!user) {
+    // Render HomePageLoggedOut at the root when not logged in
+    if (location.pathname === "/") {
+      return <HomePageLoggedOut />;
+    }
+
+    // Route for the login page
+    if (location.pathname === "/login") {
+      return <LandingPage />; // Assuming LandingPage contains your login form (Home function)
+    }
+
     // Allow direct access to public paths like /terms, /privacy, /auth/callback
     if (publicPaths.includes(location.pathname)) {
       return (
