@@ -250,6 +250,17 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
                   <Search size={18} className="mr-3" />
                   Search
                 </Button>
+                <Button
+                  onClick={() => {
+                    setIsExtensionSetupOpen(true);
+                    setIsSheetOpen(false);
+                  }}
+                  className="w-11/12 mx-auto justify-start px-3 py-2 h-auto text-base border-orange-500 text-orange-500 hover:bg-orange-50 hover:text-orange-600"
+                  variant="outline"
+                >
+                  <HelpCircle size={18} className="mr-3" />
+                  Set up link saving
+                </Button>
 
                 <nav className="flex flex-col space-y-1.5 pt-4 border-t mt-3">
                   <NavLink

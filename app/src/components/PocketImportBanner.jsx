@@ -523,7 +523,7 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
                   </div>
                 </div>
 
-                <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100">
+                <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100 sm:mt-2">
                   <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:text-center">
                     Bulk Tagging & Organizing
                   </div>
@@ -541,7 +541,7 @@ function PocketImportBanner({ onReturnToChoice, isInsideModal }) {
                   </div>
                 </div>
 
-                <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100">
+                <div className="p-3 border rounded-lg bg-white sm:p-0 sm:border-0 sm:grid sm:grid-cols-3 sm:gap-x-4 sm:items-center sm:py-2 sm:border-t border-orange-100 sm:mt-2">
                   <div className="font-medium text-slate-600 mb-1 sm:mb-0 sm:border-r sm:border-gray-200 sm:text-center">
                     Advanced Search & Filtering
                   </div>
