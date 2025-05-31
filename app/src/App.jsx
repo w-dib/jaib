@@ -25,12 +25,15 @@ import TermsOfServicePage from "./pages/TermsOfServicePage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import Footer from "./components/Footer";
 import HomePageLoggedOut from "./pages/HomePageLoggedOut";
+import PocketImportPage from "./pages/PocketImportPage";
+import { Toaster } from "../components/ui/sonner";
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <AppLayout />
+        <Toaster />
       </AuthProvider>
     </Router>
   );
@@ -96,7 +99,6 @@ function AppLayout() {
           onArticleAdded={triggerArticleRefresh}
         />
       )}
-      {user && isMainViewWithNavbar && <PocketImportBanner />}
 
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
@@ -131,8 +133,9 @@ function AppLayout() {
         <Route path="/logout" element={<LogoutHandler />} />
         <Route path="/terms" element={<TermsOfServicePage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/import-pocket" element={<PocketImportPage />} />
       </Routes>
-      {!isArticleView && <Footer />}
+      {!isArticleView && location.pathname !== "/import-pocket" && <Footer />}
     </div>
   );
 }

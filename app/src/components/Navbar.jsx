@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { PlusSquare, Search, LogOut, Menu, HelpCircle } from "lucide-react";
-import { NavLink, Link } from "react-router-dom";
+import { NavLink, Link, useNavigate } from "react-router-dom";
 import logo from "../assets/icon48.png";
 import {
   DropdownMenu,
@@ -39,6 +39,7 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [isExtensionSetupOpen, setIsExtensionSetupOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Effect to show ExtensionSetupDialog on first login
   useEffect(() => {
@@ -59,6 +60,10 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
   const handleAddUrlClick = () => {
     setIsAddUrlOpen(true);
     setIsSheetOpen(false);
+  };
+
+  const handleNavigateToBulkImport = () => {
+    navigate("/import-pocket");
   };
 
   const handleNavLinkClickInSheet = () => {
@@ -370,8 +375,9 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
       {isAddUrlOpen && (
         <AddUrlPrompt
           isOpen={isAddUrlOpen}
-          onOpenChange={setIsAddUrlOpen}
-          onArticleAdded={onArticleAdded}
+          onClose={() => setIsAddUrlOpen(false)}
+          onAdd={onArticleAdded}
+          onNavigateToBulkImport={handleNavigateToBulkImport}
         />
       )}
       {isSearchOpen && (
