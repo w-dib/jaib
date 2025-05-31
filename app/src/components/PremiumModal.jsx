@@ -40,7 +40,7 @@ function PremiumModal({ onClose }) {
                 onClose(); // Close modal for now
               }}
             >
-              Upgrade Now - $20/year
+              Upgrade Now - $49/year
             </Button>
             <Button
               variant="link"

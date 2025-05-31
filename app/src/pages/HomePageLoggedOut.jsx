@@ -313,7 +313,7 @@ export default function HomePageLoggedOut() {
                 Unlock the full power of Jaib.
               </p>
               <p className="text-4xl font-bold mb-6 text-center">
-                $20{" "}
+                $49{" "}
                 <span className="text-lg font-normal opacity-80">/ year</span>
               </p>
               <ul className="space-y-3 opacity-90 text-sm mb-8 flex-grow">

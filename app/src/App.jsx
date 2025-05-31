@@ -26,6 +26,7 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import Footer from "./components/Footer";
 import HomePageLoggedOut from "./pages/HomePageLoggedOut";
 import PocketImportPage from "./pages/PocketImportPage";
+import PricingPage from "./pages/PricingPage";
 import { Toaster } from "../components/ui/sonner";
 import PremiumModal from "./components/PremiumModal";
 import AddUrlPrompt from "./components/AddUrlPrompt";
@@ -75,7 +76,7 @@ function AppLayout() {
     navigate("/import-pocket");
   };
 
-  const publicPaths = ["/terms", "/privacy", "/auth/callback"];
+  const publicPaths = ["/terms", "/privacy", "/auth/callback", "/pricing"];
   const saveArticlePath = "/save-article";
 
   const isArticleView = location.pathname.startsWith("/article/");
@@ -87,12 +88,16 @@ function AppLayout() {
     if (location.pathname === "/login") {
       return <LandingPage />;
     }
-    if (publicPaths.includes(location.pathname)) {
+    if (
+      publicPaths.includes(location.pathname) ||
+      location.pathname === "/pricing"
+    ) {
       return (
         <Routes>
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/pricing" element={<PricingPage />} />
         </Routes>
       );
     }
@@ -147,12 +152,15 @@ function AppLayout() {
             <Route path="/terms" element={<TermsOfServicePage />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/import-pocket" element={<PocketImportPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
           </Routes>
         </div>
-        {!isArticleView && location.pathname !== "/import-pocket" && <Footer />}
+        {!isArticleView &&
+          location.pathname !== "/import-pocket" &&
+          location.pathname !== "/pricing" && <Footer />}
       </main>
 
-      {isPremiumModalOpen && (
+      {location.pathname !== "/pricing" && isPremiumModalOpen && (
         <PremiumModal onClose={() => setIsPremiumModalOpen(false)} />
       )}
       {isAddUrlOpen && (
