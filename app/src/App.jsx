@@ -9,7 +9,7 @@ import AuthCallback from "./pages/AuthCallback";
 import { useState, useEffect } from "react";
 import "./App.css";
 import { supabase } from "./lib/supabase";
-import Navbar from "./components/Navbar";
+import Sidebar from "./components/Sidebar";
 import ArticleGrid from "./components/ArticleGrid";
 import SavesView from "./components/views/SavesView";
 import FavoritesView from "./components/views/FavoritesView";
@@ -18,7 +18,6 @@ import ArticleView from "./components/views/ArticleView";
 import SaveArticleHandler from "./components/views/SaveArticleHandler";
 import { LandingPage } from "./components/LandingPage";
 import LogoutHandler from "./components/views/LogoutHandler";
-import PocketImportBanner from "./components/PocketImportBanner";
 import TagsPage from "./pages/TagsPage";
 import SharedArticleHandler from "./components/views/SharedArticleHandler";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
@@ -27,6 +26,10 @@ import Footer from "./components/Footer";
 import HomePageLoggedOut from "./pages/HomePageLoggedOut";
 import PocketImportPage from "./pages/PocketImportPage";
 import { Toaster } from "../components/ui/sonner";
+import PremiumModal from "./components/PremiumModal";
+import AddUrlPrompt from "./components/AddUrlPrompt";
+import SearchPrompt from "./components/SearchPrompt";
+import ExtensionSetupDialog from "./components/ExtensionSetupDialog";
 
 function App() {
   return (
@@ -43,31 +46,45 @@ function AppLayout() {
   const { user, signOut } = useAuth();
   const location = useLocation();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
+  const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isExtensionSetupOpen, setIsExtensionSetupOpen] = useState(false);
 
   const triggerArticleRefresh = () => {
     setRefreshKey((prevKey) => prevKey + 1);
   };
 
-  // Paths accessible when logged out (in addition to LandingPage at root)
+  useEffect(() => {
+    if (
+      user &&
+      localStorage.getItem("hasSeenExtensionSetupDialog") !== "true"
+    ) {
+      setIsExtensionSetupOpen(true);
+    }
+  }, [user]);
+
+  const handleSearch = (searchTerm) => {
+    console.log("App-level search for:", searchTerm);
+    setIsSearchOpen(false);
+  };
+
+  const handleNavigateToBulkImport = () => {
+    console.log("App.jsx: Navigate to bulk import triggered");
+  };
+
   const publicPaths = ["/terms", "/privacy", "/auth/callback"];
   const saveArticlePath = "/save-article";
 
-  const showNavbarPaths = ["/", "/favorites", "/archives", "/tags"];
-  const isMainViewWithNavbar = showNavbarPaths.includes(location.pathname);
   const isArticleView = location.pathname.startsWith("/article/");
 
   if (!user) {
-    // Render HomePageLoggedOut at the root when not logged in
     if (location.pathname === "/") {
       return <HomePageLoggedOut />;
     }
-
-    // Route for the login page
     if (location.pathname === "/login") {
-      return <LandingPage />; // Assuming LandingPage contains your login form (Home function)
+      return <LandingPage />;
     }
-
-    // Allow direct access to public paths like /terms, /privacy, /auth/callback
     if (publicPaths.includes(location.pathname)) {
       return (
         <Routes>
@@ -77,7 +94,6 @@ function AppLayout() {
         </Routes>
       );
     }
-    // Allow /save-article path
     if (location.pathname.startsWith(saveArticlePath)) {
       return (
         <Routes>
@@ -85,63 +101,77 @@ function AppLayout() {
         </Routes>
       );
     }
-    // For any other path when not logged in, show LandingPage
     return <LandingPage />;
   }
 
-  // If user is logged in, render the full app layout
   return (
-    <div className="flex flex-col min-h-screen">
-      {isMainViewWithNavbar && (
-        <Navbar
-          user={user}
-          onSignOut={signOut}
-          onArticleAdded={triggerArticleRefresh}
+    <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 dark:bg-gray-900">
+      <Sidebar
+        user={user}
+        onSignOut={signOut}
+        onArticleAdded={triggerArticleRefresh}
+        onOpenPremiumModal={() => setIsPremiumModalOpen(true)}
+        onOpenAddUrlModal={() => setIsAddUrlOpen(true)}
+        onOpenSearchModal={() => setIsSearchOpen(true)}
+        onOpenExtensionSetupDialog={() => setIsExtensionSetupOpen(true)}
+      />
+      <main className="flex-grow flex flex-col md:ml-64">
+        <div className="flex-grow p-4 md:p-6">
+          <Routes>
+            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/" element={<SavesView refreshKey={refreshKey} />} />
+            <Route
+              path="/favorites"
+              element={<FavoritesView refreshKey={refreshKey} />}
+            />
+            <Route
+              path="/archives"
+              element={<ArchivesView refreshKey={refreshKey} />}
+            />
+            <Route path="/tags" element={<TagsPage />} />
+            <Route path="/article/:id" element={<ArticleView />} />
+            <Route path="/save-article" element={<SaveArticleHandler />} />
+            <Route
+              path="/save-article-shared"
+              element={<SharedArticleHandler />}
+            />
+            <Route path="/logout" element={<LogoutHandler />} />
+            <Route path="/terms" element={<TermsOfServicePage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/import-pocket" element={<PocketImportPage />} />
+          </Routes>
+        </div>
+        {!isArticleView && location.pathname !== "/import-pocket" && <Footer />}
+      </main>
+
+      {isPremiumModalOpen && (
+        <PremiumModal onClose={() => setIsPremiumModalOpen(false)} />
+      )}
+      {isAddUrlOpen && (
+        <AddUrlPrompt
+          isOpen={isAddUrlOpen}
+          onClose={() => setIsAddUrlOpen(false)}
+          onAdd={triggerArticleRefresh}
+          onNavigateToBulkImport={handleNavigateToBulkImport}
         />
       )}
-
-      <Routes>
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route
-          path="/"
-          element={
-            <ViewWrapper>
-              <SavesView refreshKey={refreshKey} />
-            </ViewWrapper>
-          }
+      {isSearchOpen && (
+        <SearchPrompt
+          isOpen={isSearchOpen}
+          onOpenChange={setIsSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          onSearch={handleSearch}
         />
-        <Route
-          path="/favorites"
-          element={
-            <ViewWrapper>
-              <FavoritesView refreshKey={refreshKey} />
-            </ViewWrapper>
-          }
+      )}
+      {isExtensionSetupOpen && (
+        <ExtensionSetupDialog
+          isOpen={isExtensionSetupOpen}
+          onOpenChange={setIsExtensionSetupOpen}
+          onClose={() => setIsExtensionSetupOpen(false)}
         />
-        <Route
-          path="/archives"
-          element={
-            <ViewWrapper>
-              <ArchivesView refreshKey={refreshKey} />
-            </ViewWrapper>
-          }
-        />
-        <Route path="/tags" element={<TagsPage />} />
-        <Route path="/article/:id" element={<ArticleView />} />
-        <Route path="/save-article" element={<SaveArticleHandler />} />
-        <Route path="/save-article-shared" element={<SharedArticleHandler />} />
-        <Route path="/logout" element={<LogoutHandler />} />
-        <Route path="/terms" element={<TermsOfServicePage />} />
-        <Route path="/privacy" element={<PrivacyPolicyPage />} />
-        <Route path="/import-pocket" element={<PocketImportPage />} />
-      </Routes>
-      {!isArticleView && location.pathname !== "/import-pocket" && <Footer />}
+      )}
     </div>
   );
-}
-
-function ViewWrapper({ children }) {
-  return <div className="flex-grow pt-4 px-4">{children}</div>;
 }
 
 function Home() {

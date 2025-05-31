@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { PlusSquare, Search, LogOut, Menu, HelpCircle } from "lucide-react";
+import {
+  PlusSquare,
+  Search,
+  LogOut,
+  Menu,
+  HelpCircle,
+  Sparkles,
+} from "lucide-react";
 import { NavLink, Link, useNavigate } from "react-router-dom";
 import logo from "../assets/icon48.png";
 import {
@@ -34,7 +41,7 @@ import {
   SheetTrigger,
 } from "../../components/ui/sheet";
 
-function Navbar({ user, onSignOut, onArticleAdded }) {
+function Navbar({ user, onSignOut, onArticleAdded, onOpenPremiumModal }) {
   const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -170,6 +177,15 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
             <PlusSquare size={18} className="mr-2" />
             Import URL(s)
           </Button>
+          <Button
+            onClick={onOpenPremiumModal}
+            variant="outline"
+            className="border-orange-400 text-orange-600 hover:bg-orange-50 hover:text-orange-700 px-3 py-2 h-auto"
+            aria-label="Go Premium"
+          >
+            <Sparkles size={18} className="mr-2" />
+            Go Premium
+          </Button>
           <TooltipProvider delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -248,11 +264,19 @@ function Navbar({ user, onSignOut, onArticleAdded }) {
               <div className="flex flex-col space-y-3">
                 <Button
                   onClick={handleAddUrlClick}
-                  className="w-11/12 mx-auto justify-start bg-orange-500 hover:bg-orange-600 text-white px-3 py-2 h-auto text-base"
-                  variant="default"
+                  className="w-full justify-start bg-orange-500 hover:bg-orange-600 text-white"
                 >
-                  <PlusSquare size={18} className="mr-3" />
-                  Import URL(s)
+                  <PlusSquare size={18} className="mr-2" /> Import URL(s)
+                </Button>
+                <Button
+                  onClick={() => {
+                    onOpenPremiumModal();
+                    setIsSheetOpen(false);
+                  }}
+                  variant="outline"
+                  className="w-full justify-start border-orange-400 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                >
+                  <Sparkles size={18} className="mr-2" /> Go Premium
                 </Button>
                 <Button
                   onClick={() => {

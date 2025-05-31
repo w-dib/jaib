@@ -7,10 +7,15 @@ import {
   Loader2,
   CheckCircle2,
   AlertTriangle,
+  Sparkles,
+  Info,
+  ArrowRight,
+  Lock,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { Button } from "../../components/ui/button";
+import { Link } from "react-router-dom";
 
 function PocketImportBanner() {
   const [fileName, setFileName] = useState(null);
@@ -28,6 +33,14 @@ function PocketImportBanner() {
     useState(false);
 
   const { user } = useAuth();
+
+  // --- Mock User Plan & Usage Data (for UI demonstration) ---
+  // In a real app, this would come from user profile/subscription state
+  const isPremiumUser = false; // TOGGLE THIS to see different UI
+  const freePlanTotalAllowance = 50;
+  const articlesImportedByFreeUser = 10; // Example count
+  const premiumDailyLimit = 1000;
+  // --- End Mock Data ---
 
   const onDrop = useCallback((acceptedFiles) => {
     setParseError(null);
@@ -158,7 +171,7 @@ function PocketImportBanner() {
 
     setIsImporting(true);
     setImportProgress(0);
-    setCurrentImportStatusMessage("Starting import...");
+    setCurrentImportStatusMessage("Preparing import..."); // Initial message
     setSuccessfullyImportedCount(0);
     setFailedImportDetails([]);
     setSkippedImportDetails([]);
@@ -167,13 +180,13 @@ function PocketImportBanner() {
 
     for (let i = 0; i < extractedArticlesData.length; i++) {
       const articleData = extractedArticlesData[i];
-      const progress = ((i + 1) / extractedArticlesData.length) * 100;
+      const uiProgress = ((i + 1) / extractedArticlesData.length) * 100;
       setCurrentImportStatusMessage(
         `Importing article ${i + 1} of ${
           extractedArticlesData.length
-        }: ${articleData.url.substring(0, 50)}...`
+        }: ${articleData.url.substring(0, 60)}...`
       );
-      setImportProgress(progress);
+      setImportProgress(uiProgress);
 
       try {
         const { data: functionResponse, error: functionError } =
@@ -263,6 +276,65 @@ function PocketImportBanner() {
 
   return (
     <div className="w-full bg-white p-6 sm:p-8 rounded-lg shadow-xl border border-gray-200">
+      {/* --- Usage Limits & Premium CTA Section --- */}
+      {!isImporting && !importCompletedThisSession && (
+        <>
+          {isPremiumUser ? (
+            <div className="mx-auto max-w-xl mb-6 p-5 bg-blue-50 border border-blue-200 rounded-xl shadow-sm text-sm">
+              <div className="flex items-center">
+                <Sparkles
+                  size={22}
+                  className="mr-3 text-blue-500 flex-shrink-0"
+                />
+                <div>
+                  <p className="font-semibold text-blue-800">
+                    You're on Jaib Premium!
+                  </p>
+                  <p className="mt-0.5 text-blue-600">
+                    You can import up to {premiumDailyLimit.toLocaleString()}{" "}
+                    articles per day.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mx-auto max-w-xl mb-6 bg-orange-50 border border-orange-200 rounded-xl p-4 sm:p-6 shadow-sm text-left">
+              <div className="flex items-center">
+                <Lock
+                  size={18}
+                  className="mr-1.5 text-orange-500 flex-shrink-0"
+                />
+                <p className="text-sm text-orange-900 font-semibold">
+                  Jaib Free Plan Limit
+                </p>
+              </div>
+              <p className="text-sm text-slate-600 mt-2">
+                You've imported{" "}
+                <span className="font-medium text-slate-800">
+                  {articlesImportedByFreeUser} of {freePlanTotalAllowance}
+                </span>{" "}
+                articles.
+              </p>
+              <div className="mt-4">
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  Want to unlock unlimited imports, text-to-speech, and more?{" "}
+                  <Link
+                    to="/pricing"
+                    className="inline-flex items-center whitespace-nowrap rounded-md bg-orange-500 px-3 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-orange-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400 focus-visible:ring-offset-1"
+                  >
+                    Go Premium
+                  </Link>
+                </p>
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                  It's instant, affordable, and built for power readers.
+                </p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+      {/* --- End Usage Limits & Premium CTA Section --- */}
+
       {!isImporting && !importCompletedThisSession && (
         <div className="mb-8 text-center">
           <h2 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-3">
@@ -346,27 +418,36 @@ function PocketImportBanner() {
 
       {(isImporting || importCompletedThisSession) && (
         <div className="mt-8 w-full">
-          <h3 className="text-xl font-semibold text-gray-800 mb-3 text-center">
+          <h3 className="text-2xl font-semibold text-gray-800 mb-4 text-center">
             {isImporting ? "Importing Articles..." : "Import Results"}
           </h3>
+
           {isImporting && (
-            <p className="text-center text-orange-600 mb-2 font-semibold">
-              {currentImportStatusMessage}
-            </p>
+            <div className="text-center mb-6">
+              <p className="text-sm text-orange-600 mb-1">
+                {currentImportStatusMessage}
+              </p>
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2.5 my-2 shadow-inner overflow-hidden">
+                <div
+                  className="bg-orange-500 h-2.5 rounded-full transition-all duration-200 ease-linear"
+                  style={{ width: `${importProgress}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-xs text-gray-500 mb-4">
+                <span>{Math.round(importProgress)}% complete</span>
+              </div>
+
+              {/* Warning Message */}
+              <div className="mt-4 p-3 bg-yellow-50 text-yellow-700 border border-yellow-200 rounded-md flex items-center justify-center text-sm">
+                <AlertTriangle size={18} className="mr-2 flex-shrink-0" />
+                Please keep this page open until the import is complete.
+              </div>
+            </div>
           )}
-          <div className="w-full bg-gray-200 rounded-full h-4 mb-3 overflow-hidden">
-            <div
-              className="bg-orange-500 h-4 rounded-full transition-all duration-300 ease-linear"
-              style={{ width: `${importProgress}%` }}
-            />
-          </div>
-          <div className="text-sm text-center text-gray-600 mb-6">
-            Progress: {Math.round(importProgress)}% ({successfullyImportedCount}
-            /{extractedArticlesData.length})
-          </div>
 
           {importCompletedThisSession && (
-            <div className="space-y-4">
+            <div className="space-y-4 mt-6">
               {successfullyImportedCount > 0 && (
                 <div className="p-4 bg-green-50 text-green-700 border border-green-200 rounded-md">
                   <CheckCircle2 className="inline h-5 w-5 mr-2" />

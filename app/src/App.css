@@ -4,8 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
+  /* max-width: 1280px; */ /* Commented out for full-width */
+  /* margin: 0 auto; */ /* Commented out for full-width */
   text-align: center;
 }
 
