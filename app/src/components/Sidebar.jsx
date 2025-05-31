@@ -123,12 +123,12 @@ function Sidebar({
   );
 
   const userMenu = user ? (
-    <div className="mt-auto p-3 border-t dark:border-gray-700">
+    <div className="mt-2 p-1.5 border-t dark:border-gray-700">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
-            className="w-full flex items-center justify-between text-left p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+            className="w-full flex items-center justify-between text-left p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
           >
             <div className="flex items-center space-x-2 overflow-hidden">
               <Avatar className="h-8 w-8 border-2 border-orange-500">

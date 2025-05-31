@@ -3,6 +3,7 @@ import {
   Routes,
   Route,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import AuthCallback from "./pages/AuthCallback";
@@ -45,6 +46,7 @@ function App() {
 function AppLayout() {
   const { user, signOut } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [refreshKey, setRefreshKey] = useState(0);
   const [isPremiumModalOpen, setIsPremiumModalOpen] = useState(false);
   const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
@@ -70,7 +72,7 @@ function AppLayout() {
   };
 
   const handleNavigateToBulkImport = () => {
-    console.log("App.jsx: Navigate to bulk import triggered");
+    navigate("/import-pocket");
   };
 
   const publicPaths = ["/terms", "/privacy", "/auth/callback"];
@@ -106,16 +108,22 @@ function AppLayout() {
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 dark:bg-gray-900">
-      <Sidebar
-        user={user}
-        onSignOut={signOut}
-        onArticleAdded={triggerArticleRefresh}
-        onOpenPremiumModal={() => setIsPremiumModalOpen(true)}
-        onOpenAddUrlModal={() => setIsAddUrlOpen(true)}
-        onOpenSearchModal={() => setIsSearchOpen(true)}
-        onOpenExtensionSetupDialog={() => setIsExtensionSetupOpen(true)}
-      />
-      <main className="flex-grow flex flex-col md:ml-64">
+      {!isArticleView && (
+        <Sidebar
+          user={user}
+          onSignOut={signOut}
+          onArticleAdded={triggerArticleRefresh}
+          onOpenPremiumModal={() => setIsPremiumModalOpen(true)}
+          onOpenAddUrlModal={() => setIsAddUrlOpen(true)}
+          onOpenSearchModal={() => setIsSearchOpen(true)}
+          onOpenExtensionSetupDialog={() => setIsExtensionSetupOpen(true)}
+        />
+      )}
+      <main
+        className={`flex-grow flex flex-col ${
+          !isArticleView ? "md:ml-64" : ""
+        }`}
+      >
         <div className="flex-grow p-4 md:p-6">
           <Routes>
             <Route path="/auth/callback" element={<AuthCallback />} />
