@@ -18,6 +18,11 @@ import {
   ExternalLink, // Added for View Original link
   Tag, // IMPORTED: For Tagging
   Quote, // ADDED: For highlight card UI improvement
+  Headphones, // ADDED: For Audio Player
+  HeadphoneOff, // ADDED: For Audio Player (If this causes error, replace with EarOff or similar)
+  RotateCcw, // ADDED: For Audio Player (Rewind)
+  RotateCw, // ADDED: For Audio Player (Fast-forward)
+  X as XIcon, // ADDED: For Audio Player (Close)
 } from "lucide-react";
 
 // Import ShadCN Dialog components with corrected path
@@ -54,6 +59,7 @@ import {
   SheetTitle,
   SheetDescription,
 } from "../../../components/ui/sheet"; // IMPORTED: For Highlights Sheet
+import AudioPlayerCard from "./AudioPlayerCard"; // ADDED: Import AudioPlayerCard
 
 function ArticleView() {
   const { id } = useParams();
@@ -74,16 +80,253 @@ function ArticleView() {
 
   // State for text selection popover
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-  const [popoverAnchorRect, setPopoverAnchorRect] = useState(null); // Stores { top, left, width, height } for PopoverAnchor
-  const [selectionRects, setSelectionRects] = useState([]); // Stores DOMRects for drawing custom highlights
+  const [popoverAnchorRect, setPopoverAnchorRect] = useState(null);
+  const [selectionRects, setSelectionRects] = useState([]);
   const popoverRef = useRef(null);
-  const [savedHighlights, setSavedHighlights] = useState([]); // State for persisted highlights
-  const [selectedTextContent, setSelectedTextContent] = useState(""); // State for the actual selected text
-  const [isHighlightSheetOpen, setIsHighlightSheetOpen] = useState(false); // ADDED: State for highlight sheet
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768); // ADDED: State for mobile detection
+  const [savedHighlights, setSavedHighlights] = useState([]);
+  const [selectedTextContent, setSelectedTextContent] = useState("");
+  const [isHighlightSheetOpen, setIsHighlightSheetOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isDeleteHighlightDialogOpen, setIsDeleteHighlightDialogOpen] =
-    useState(false); // ADDED: For highlight deletion dialog
-  const [highlightToDeleteId, setHighlightToDeleteId] = useState(null); // ADDED: ID of highlight to delete
+    useState(false);
+  const [highlightToDeleteId, setHighlightToDeleteId] = useState(null);
+
+  // State for Audio Player (using HTML5 Audio + Edge Function)
+  const [isAudioPlayerVisible, setIsAudioPlayerVisible] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const audioRef = useRef(null); // Ref for the <audio> element
+  const [audioLoading, setAudioLoading] = useState(false); // To show loading state for TTS
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  // NEW: Handler for the main navigation audio button
+  const handleNavAudioButtonClick = () => {
+    if (isAudioPlayerVisible) {
+      // If player is visible, close it.
+      // handleCloseAudioPlayer handles pausing, cleaning up, and setting relevant states.
+      handleCloseAudioPlayer();
+    } else {
+      // If player is hidden, show it.
+      // The actual fetching/playing will be initiated by the AudioPlayerCard's own play button
+      // which uses the original handlePlayPauseAudio function.
+      setIsAudioPlayerVisible(true);
+      // Ensure audio is paused if it was somehow playing and card was hidden without full cleanup.
+      // This helps ensure the card starts in a predictable (paused) state if audioUrl already exists.
+      if (audioRef.current && !audioRef.current.paused) {
+        audioRef.current.pause(); // This will set isPlayingAudio = false via event listener
+      }
+    }
+  };
+
+  // Fetch TTS audio from Supabase Edge Function
+  const fetchTTSAudio = async (htmlContent) => {
+    console.log("[ArticleView] fetchTTSAudio: Called with HTML content."); // LOG 1
+
+    // The Edge Function will now handle HTML parsing.
+    // We send the raw HTML content directly.
+    if (
+      !htmlContent ||
+      typeof htmlContent !== "string" ||
+      htmlContent.trim() === ""
+    ) {
+      toast.error("No HTML content available to read.");
+      console.warn(
+        "[ArticleView] fetchTTSAudio: No HTML content provided or empty."
+      ); // LOG 2
+      setAudioLoading(false);
+      return;
+    }
+    setAudioLoading(true);
+    setAudioUrl(null);
+    setCurrentTime(0);
+    setDuration(0);
+    console.log(
+      "[ArticleView] fetchTTSAudio: audioLoading set to true. HTML content to send (start):",
+      htmlContent.substring(0, 100)
+    ); // LOG 3
+
+    try {
+      console.log(
+        "[ArticleView] fetchTTSAudio: Attempting to invoke Supabase function text-to-speech with HTML."
+      ); // LOG 4
+      const response = await supabase.functions.invoke("text-to-speech", {
+        body: { text: htmlContent }, // Send HTML content directly
+      });
+      console.log(
+        "[ArticleView] fetchTTSAudio: Supabase function response received:",
+        response
+      ); // LOG 5
+
+      if (response.error) {
+        throw new Error(
+          response.error.message || "TTS function invocation failed"
+        );
+      }
+
+      if (!response.data) {
+        throw new Error("No audio data received from TTS function.");
+      }
+
+      const contentType = response.headers?.get("content-type") || "audio/mpeg";
+      console.log(
+        "[ArticleView] fetchTTSAudio: Audio content type:",
+        contentType
+      ); // LOG 6
+      const audioBlob = new Blob([response.data], { type: contentType });
+      const url = URL.createObjectURL(audioBlob);
+      console.log("[ArticleView] fetchTTSAudio: Audio Blob URL created:", url); // LOG 7
+      setAudioUrl(url);
+      setIsAudioPlayerVisible(true);
+    } catch (err) {
+      console.error("[ArticleView] fetchTTSAudio: Error:", err); // LOG 8
+      toast.error(`Failed to generate audio: ${err.message}`);
+      setAudioUrl(null);
+      setIsAudioPlayerVisible(false);
+    } finally {
+      setAudioLoading(false);
+      console.log(
+        "[ArticleView] fetchTTSAudio: finally block, audioLoading set to false."
+      ); // LOG 9
+    }
+  };
+
+  // Handle Play/Pause for the new <audio> element
+  const handlePlayPauseAudio = async () => {
+    console.log("[ArticleView] handlePlayPauseAudio: Called."); // LOG A
+    console.log(
+      `[ArticleView] handlePlayPauseAudio: Initial states - audioLoading: ${audioLoading}, audioUrl: ${audioUrl}, article loaded: ${!!article}`
+    ); // LOG B
+    if (article) {
+      console.log(
+        `[ArticleView] handlePlayPauseAudio: article.content (HTML) available: ${!!article.content}, length: ${
+          article.content?.length
+        }`
+      ); // LOG C
+    }
+
+    if (audioLoading) {
+      toast.info("Audio is currently generating...");
+      console.log(
+        "[ArticleView] handlePlayPauseAudio: Exiting because audioLoading is true."
+      ); // LOG D
+      return;
+    }
+
+    if (!audioUrl && article && article.content) {
+      console.log(
+        "[ArticleView] handlePlayPauseAudio: Condition met to fetch audio. Calling fetchTTSAudio with article.content (HTML)."
+      ); // LOG E
+      await fetchTTSAudio(article.content); // article.content is HTML, Edge function will parse
+    } else if (audioRef.current) {
+      console.log(
+        "[ArticleView] handlePlayPauseAudio: Condition met to play/pause existing audio. Audio paused:",
+        audioRef.current.paused
+      ); // LOG F
+      if (audioRef.current.paused) {
+        audioRef.current
+          .play()
+          .catch((e) => console.error("Error playing audio:", e));
+      } else {
+        audioRef.current.pause();
+      }
+      if (!isAudioPlayerVisible) setIsAudioPlayerVisible(true);
+    } else {
+      console.warn(
+        "[ArticleView] handlePlayPauseAudio: No action taken - conditions not met."
+      ); // LOG G
+      if (!article || !article.content) {
+        toast.error("Article content not available to read.");
+        console.warn(
+          "[ArticleView] handlePlayPauseAudio: Article or article.content (HTML) not available."
+        ); // LOG H
+      } else if (audioUrl && !audioRef.current) {
+        console.warn(
+          "[ArticleView] handlePlayPauseAudio: audioUrl exists, but audioRef.current is null. This is unexpected."
+        ); // LOG I
+      }
+    }
+  };
+
+  // Handle closing the audio player
+  const handleCloseAudioPlayer = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      // Revoke the object URL to free up resources
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    }
+    setAudioUrl(null);
+    setIsAudioPlayerVisible(false);
+    setIsPlayingAudio(false);
+    setCurrentTime(0);
+    setDuration(0);
+  };
+
+  // Effect for <audio> element event listeners
+  useEffect(() => {
+    const audioElement = audioRef.current;
+    if (audioElement) {
+      const handlePlay = () => setIsPlayingAudio(true);
+      const handlePause = () => setIsPlayingAudio(false);
+      const handleEnded = () => {
+        setIsPlayingAudio(false);
+        setCurrentTime(audioElement.duration); // Show full duration at end
+        // Optionally close player: handleCloseAudioPlayer();
+      };
+      const handleTimeUpdate = () => setCurrentTime(audioElement.currentTime);
+      const handleLoadedMetadata = () => setDuration(audioElement.duration);
+      const handleCanPlay = () => {
+        // Autoplay if it was intended (e.g., if audioUrl was just set and user clicked play)
+        if (isAudioPlayerVisible && !isPlayingAudio) {
+          // Check if it should start playing
+          audioElement
+            .play()
+            .catch((e) => console.error("Autoplay failed:", e));
+        }
+      };
+      const handleError = (e) => {
+        console.error("Audio element error:", e);
+        toast.error("Error playing audio.");
+        handleCloseAudioPlayer(); // Close on error
+      };
+
+      audioElement.addEventListener("play", handlePlay);
+      audioElement.addEventListener("pause", handlePause);
+      audioElement.addEventListener("ended", handleEnded);
+      audioElement.addEventListener("timeupdate", handleTimeUpdate);
+      audioElement.addEventListener("loadedmetadata", handleLoadedMetadata);
+      audioElement.addEventListener("canplay", handleCanPlay);
+      audioElement.addEventListener("error", handleError);
+
+      // Set initial playback rate
+      audioElement.playbackRate = playbackSpeed;
+
+      return () => {
+        audioElement.removeEventListener("play", handlePlay);
+        audioElement.removeEventListener("pause", handlePause);
+        audioElement.removeEventListener("ended", handleEnded);
+        audioElement.removeEventListener("timeupdate", handleTimeUpdate);
+        audioElement.removeEventListener(
+          "loadedmetadata",
+          handleLoadedMetadata
+        );
+        audioElement.removeEventListener("canplay", handleCanPlay);
+        audioElement.removeEventListener("error", handleError);
+      };
+    }
+  }, [audioUrl, playbackSpeed]); // Rerun when audioUrl or playbackSpeed changes
+
+  // Cleanup audio object URL on component unmount
+  useEffect(() => {
+    return () => {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  }, [audioUrl]);
 
   // Helper function to find text in DOM and return its rects
   // For simplicity with current selector_info, this finds the FIRST match.
@@ -857,6 +1100,41 @@ function ArticleView() {
               </Tooltip>
             </TooltipProvider>
 
+            {/* ADDED: Audio Player Button */}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleNavAudioButtonClick} // UPDATED onClick handler
+                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    aria-label={
+                      isAudioPlayerVisible
+                        ? "Close Audio Player"
+                        : "Play Article"
+                    } // UPDATED aria-label
+                    // Removed disabled={audioLoading} - nav button can always close the player
+                  >
+                    {isAudioPlayerVisible ? ( // UPDATED icon logic
+                      <HeadphoneOff
+                        size={iconSize}
+                        className="text-orange-500" // Active color when player is visible
+                      />
+                    ) : (
+                      <Headphones size={iconSize} className="text-gray-600" />
+                    )}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {isAudioPlayerVisible
+                      ? "Close Audio Player"
+                      : "Play Article"}
+                  </p>{" "}
+                  {/* UPDATED tooltip text */}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
             {/* Archive Button */}
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -1000,6 +1278,56 @@ function ArticleView() {
         )}
       </div>
 
+      {/* Hidden HTML5 Audio Element */}
+      {audioUrl && (
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="auto"
+          style={{ display: "none" }}
+          // Event listeners are added via useEffect when audioUrl changes
+        />
+      )}
+
+      {/* Integrated AudioPlayerCard */}
+      {isAudioPlayerVisible && article && (
+        <AudioPlayerCard
+          article={article}
+          isPlaying={isPlayingAudio}
+          isLoading={audioLoading} // Pass loading state
+          onPlayPause={handlePlayPauseAudio}
+          onClose={handleCloseAudioPlayer}
+          onRewind={() => {
+            if (audioRef.current)
+              audioRef.current.currentTime = Math.max(
+                0,
+                audioRef.current.currentTime - 5
+              );
+          }}
+          onFastForward={() => {
+            if (audioRef.current)
+              audioRef.current.currentTime = Math.min(
+                duration,
+                audioRef.current.currentTime + 5
+              );
+          }}
+          onSpeedChange={(speed) => {
+            setPlaybackSpeed(speed);
+            if (audioRef.current) audioRef.current.playbackRate = speed;
+          }}
+          playbackSpeed={playbackSpeed}
+          currentTime={currentTime}
+          duration={duration}
+          onSeek={(newTime) => {
+            if (audioRef.current) {
+              audioRef.current.currentTime = newTime;
+              setCurrentTime(newTime); // Also update state directly for smoother UI
+            }
+          }}
+          isMobile={isMobile}
+        />
+      )}
+
       {/* Highlights Sheet - ADDED */}
       <Sheet open={isHighlightSheetOpen} onOpenChange={setIsHighlightSheetOpen}>
         <SheetContent
@@ -1057,7 +1385,7 @@ function ArticleView() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="w-full justify-start px-2 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50"
+                        className="w-full justify-start px-2 py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => handleDeleteHighlight(highlight.id)}
                       >
                         <Trash2 size={14} className="mr-2" /> Delete
