@@ -44,6 +44,7 @@ const NewFeatureCard = ({ icon, title, children }) => (
 export default function HomePageLoggedOut() {
   const navigate = useNavigate();
   const [isPocketImportPopupOpen, setIsPocketImportPopupOpen] = useState(false);
+  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
     // Apply styles to #root for full width when this component mounts
@@ -475,13 +476,28 @@ export default function HomePageLoggedOut() {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 bg-gray-100 border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
-          <p>&copy; {new Date().getFullYear()} Jaib. All rights reserved.</p>
-          {/* <div className="mt-2 space-x-4">
-            <Link to="/privacy" className="hover:text-orange-600">Privacy Policy</Link>
-            <Link to="/terms" className="hover:text-orange-600">Terms of Service</Link>
-          </div> */}
+      <footer className="mt-auto w-full border-t border-border py-4 px-4 sm:px-6 lg:px-8 bg-background">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center text-xs text-muted-foreground">
+          <p className="mb-2 sm:mb-0">
+            &copy; {currentYear} Walid Dib. All rights reserved.
+          </p>
+          <nav className="flex space-x-4 sm:space-x-6">
+            <a
+              href="mailto:wdanieldib@gmail.com"
+              className="hover:text-foreground hover:underline"
+            >
+              Get help
+            </a>
+            <Link
+              to="/privacy"
+              className="hover:text-foreground hover:underline"
+            >
+              Privacy policy
+            </Link>
+            <Link to="/terms" className="hover:text-foreground hover:underline">
+              Terms of service
+            </Link>
+          </nav>
         </div>
       </footer>
 

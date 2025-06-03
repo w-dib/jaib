@@ -5,6 +5,7 @@ import { supabase } from "../../lib/supabase";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import SkeletonCard from "../SkeletonCard";
+import { toast } from "sonner";
 
 function SaveArticleHandler() {
   const { user } = useAuth();
@@ -81,14 +82,26 @@ function SaveArticleHandler() {
           if (dbError) {
             console.error("Error saving article to database:", dbError);
             if (dbError.code === "23505") {
+              toast.success("Article already saved!", {
+                position: "top-right",
+                duration: 5000,
+              });
               setStatus("Success");
               setTimeout(() => navigate("/"), 1500);
               return;
             }
+            toast.error("Failed to save article.", {
+              position: "top-right",
+              duration: 5000,
+            });
             throw new Error(dbError.message || "Error saving article.");
           }
 
           console.log("Article saved:", dbData);
+          toast.success("Article saved!", {
+            position: "top-right",
+            duration: 5000,
+          });
           setStatus("Success");
           if (dbData && dbData.length > 0 && dbData[0].id) {
             setTimeout(() => navigate(`/article/${dbData[0].id}`), 1500);
@@ -97,6 +110,10 @@ function SaveArticleHandler() {
           }
         } catch (err) {
           console.error("Failed to save article:", err);
+          toast.error("Failed to save article.", {
+            position: "top-right",
+            duration: 5000,
+          });
           setError(err.message);
           setStatus("Error");
         }

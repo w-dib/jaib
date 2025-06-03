@@ -112,7 +112,7 @@ function AppLayout() {
   }
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col md:flex-row min-h-screen dark:bg-gray-900">
       {!isArticleView && (
         <Sidebar
           user={user}

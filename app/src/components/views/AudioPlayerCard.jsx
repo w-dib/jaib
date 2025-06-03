@@ -12,12 +12,7 @@ import {
   ImageOff, // Placeholder if no image
 } from "lucide-react";
 import { Button } from "../../../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "../../../components/ui/card";
+import { Card, CardContent, CardHeader } from "../../../components/ui/card";
 import {
   Popover,
   PopoverContent,
@@ -62,20 +57,27 @@ function AudioPlayerCard({
   return (
     <div
       className={cn(
-        "fixed bottom-0 left-0 right-0 z-50 p-2 sm:p-4 flex justify-center", // Base positioning
-        isMobile ? "" : "pointer-events-none" // Disable pointer events on container for desktop to allow clicking through
+        "fixed bottom-0 left-0 right-0 z-50 p-2 sm:p-4 flex justify-center",
+        isMobile ? "" : "pointer-events-none"
       )}
     >
       <Card
         className={cn(
           "shadow-2xl rounded-lg overflow-hidden bg-background/80 backdrop-blur-md border border-border/40",
           isMobile
-            ? "w-full  max-w-full rounded-none border-t border-x-0 border-b-0" // Mobile: full width, no bottom radius, only top border
-            : "w-full sm:max-w-[718px] pointer-events-auto mb-4" // Desktop: UPDATED max-width, allow pointer events
+            ? "w-full max-w-full rounded-none border-t border-x-0 border-b-0"
+            : "w-full max-w-[718px] pointer-events-auto mb-4" // MODIFIED: Desktop width to 718px
         )}
       >
-        <CardHeader className={cn("p-3 sm:p-4 relative", isMobile && "pb-2")}>
-          <div className="flex items-center space-x-3">
+        {/* MODIFIED: CardHeader to use flex for better spacing of X button */}
+        <CardHeader
+          className={cn(
+            "p-3 sm:p-4 flex justify-between items-start", // items-start to align X to top
+            isMobile && "pb-2"
+          )}
+        >
+          {/* Container for Image and Text */}
+          <div className="flex items-center space-x-3 flex-grow min-w-0">
             {article?.lead_image_url ? (
               <img
                 src={article.lead_image_url}
@@ -90,9 +92,7 @@ function AudioPlayerCard({
                 />
               </div>
             )}
-            <div className="flex-1 min-w-0 pr-8 sm:pr-10">
-              {" "}
-              {/* ADDED pr-8 sm:pr-10 for spacing from X button */}
+            <div className="flex-1 min-w-0">
               <p className="text-sm sm:text-base font-semibold truncate text-foreground">
                 {article?.title || "Audio Title Unknown"}
               </p>
@@ -101,11 +101,12 @@ function AudioPlayerCard({
               </p>
             </div>
           </div>
+          {/* X Button - now a flex item */}
           <Button
             variant="ghost"
             size="icon"
             onClick={onClose}
-            className="absolute top-1 right-1 sm:top-2 sm:right-2 h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 sm:h-8 sm:w-8 text-muted-foreground hover:text-foreground flex-shrink-0 ml-2" // Added ml-2 for some spacing
             aria-label="Close audio player"
           >
             <XIcon size={isMobile ? 18 : 20} />
@@ -120,11 +121,7 @@ function AudioPlayerCard({
               max={duration || 100} // Prevent NaN if duration is 0
               step={1}
               onValueChange={(value) => onSeek(value[0])}
-              className={cn(
-                "w-full h-2 sm:h-2.5",
-                "[&_div[data-slider-track]]:bg-orange-300",
-                "[&_div[data-slider-range]]:bg-orange-500"
-              )}
+              className="w-full h-2 sm:h-2.5"
               disabled={isLoading || !duration}
               aria-label="Audio progress"
             />
@@ -186,7 +183,7 @@ function AudioPlayerCard({
                 variant="default" // Prominent play/pause button
                 size="icon"
                 onClick={onPlayPause}
-                className="h-10 w-10 sm:h-12 sm:w-12 rounded-full shadow-md bg-primary hover:bg-primary/90 text-primary-foreground" // Make it stand out
+                className="h-10 w-10 sm:h-12 sm:w-12 rounded-full shadow-md bg-primary hover:bg-primary/90 text-primary-foreground"
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isLoading ? (
@@ -214,7 +211,6 @@ function AudioPlayerCard({
             <div className="h-9 w-9 sm:h-10 sm:w-10" />
           </div>
         </CardContent>
-        {/* No CardFooter needed for this design to keep it sleek */}
       </Card>
     </div>
   );

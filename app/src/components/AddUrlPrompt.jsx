@@ -64,35 +64,43 @@ function AddUrlPrompt({ isOpen, onClose, onAdd, onNavigateToBulkImport }) {
 
       const parsedArticle = functionResponse;
 
-      const { error: insertError } = await supabase.from("articles").insert({
-        url: parsedArticle.url,
-        title: parsedArticle.title,
-        content: parsedArticle.content,
-        excerpt: parsedArticle.excerpt,
-        byline: parsedArticle.byline,
-        length: parsedArticle.length,
-        lead_image_url: parsedArticle.lead_image_url,
-        user_id: user.id,
-      });
+      const { data: insertedArticle, error: insertError } = await supabase
+        .from("articles")
+        .insert({
+          url: parsedArticle.url,
+          title: parsedArticle.title,
+          content: parsedArticle.content,
+          excerpt: parsedArticle.excerpt,
+          byline: parsedArticle.byline,
+          length: parsedArticle.length,
+          lead_image_url: parsedArticle.lead_image_url,
+          user_id: user.id,
+        })
+        .select()
+        .single();
 
       if (insertError) {
         console.error("Error saving article to database:", insertError);
-        throw new Error(insertError.message || "Error saving article.");
+        if (
+          insertError.message &&
+          insertError.message.includes("unique_user_article_url")
+        ) {
+          throw new Error("Article already saved!");
+        } else {
+          throw new Error(insertError.message || "Error saving article.");
+        }
       }
 
       setUrl("");
       setProcessingError(null);
-      onAdd(url.trim()); // Call the onAdd prop (typically to refresh article list)
-      toast.success("URL saved!");
-      onClose(); // Close the modal
+      onAdd(insertedArticle);
+      toast.success("URL saved!", { position: "top-right", duration: 5000 });
+      onClose();
     } catch (error) {
       console.error("Error in handleSingleUrlSubmit:", error);
-      setIsProcessing(false);
       setProcessingError(error.message || "An unexpected error occurred.");
     } finally {
-      // setIsProcessing(false); // Already set in try/catch, but good for robustness if not.
-      // No, this would set it to false too early if an error occurred and was caught.
-      // The explicit setIsProcessing(false) in catch and after successful try is better.
+      setIsProcessing(false);
     }
   };
 
