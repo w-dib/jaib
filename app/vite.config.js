@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { fileURLToPath } from "url";
 import { VitePWA } from "vite-plugin-pwa";
+import vercel from "vite-plugin-vercel";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -54,10 +55,28 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2,woff,ttf,eot}"], // Ensures all necessary assets are cached
       },
     }),
+    vercel(),
   ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
     },
+  },
+  server: {
+    proxy: {
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+    },
+  },
+  vercel: {
+    // Example: To ensure your api routes are correctly handled if they are not in the default /api
+    // additionalEndpoints: [
+    //   {
+    //     source: 'src/api/another-endpoint.js',
+    //     destination: '/api/another-endpoint',
+    //   },
+    // ],
   },
 });

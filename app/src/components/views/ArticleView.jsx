@@ -110,6 +110,71 @@ function ArticleView() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  // NEW: State for chunking
+  const [textChunks, setTextChunks] = useState([]);
+  const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
+
+  // Helper function to convert HTML to plain text
+  const getPlainTextFromHTML = (htmlString) => {
+    if (typeof DOMParser !== "undefined") {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlString, "text/html");
+      return doc.body.textContent || "";
+    } else {
+      // Fallback for non-browser environments (should not happen in client-side React)
+      return htmlString
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+  };
+
+  // Helper function to chunk text
+  const chunkText = (text, maxLength = 4500) => {
+    // Max length slightly less than 5000 for safety
+    const chunks = [];
+    if (!text) return chunks;
+
+    let currentPosition = 0;
+    while (currentPosition < text.length) {
+      let endPosition = Math.min(currentPosition + maxLength, text.length);
+
+      // Try to not split words/sentences if possible, by looking for last space or punctuation.
+      if (endPosition < text.length) {
+        let lastSpace = text.lastIndexOf(" ", endPosition);
+        let lastPeriod = text.lastIndexOf(".", endPosition);
+        let lastQuestion = text.lastIndexOf("?", endPosition);
+        let lastExclamation = text.lastIndexOf("!", endPosition);
+
+        let splitAt = Math.max(
+          lastSpace,
+          lastPeriod,
+          lastQuestion,
+          lastExclamation
+        );
+
+        // If a good split point is found within a reasonable distance (e.g., last 20% of chunk)
+        // and it's not too far back (e.g. not splitting a 5000 char chunk into 1000 + 4000)
+        // A simple check: if a punctuation is found after maxLength * 0.8
+        if (
+          splitAt > currentPosition + maxLength * 0.8 &&
+          splitAt > currentPosition
+        ) {
+          endPosition = splitAt + 1; // Include the punctuation/space
+        } else if (
+          lastSpace > currentPosition + maxLength * 0.5 &&
+          lastSpace > currentPosition
+        ) {
+          // Fallback to last space if it's reasonably far
+          endPosition = lastSpace + 1;
+        }
+        // If sentence is longer than maxLength, it will be hard cut by Math.min earlier.
+      }
+      chunks.push(text.substring(currentPosition, endPosition));
+      currentPosition = endPosition;
+    }
+    return chunks.filter((chunk) => chunk.trim().length > 0);
+  };
 
   // NEW: Handler for the main navigation audio button
   const handleNavAudioButtonClick = () => {
@@ -130,92 +195,99 @@ function ArticleView() {
     }
   };
 
-  // Fetch TTS audio from Supabase Edge Function
-  const fetchTTSAudio = async (htmlContent) => {
-    console.log("[ArticleView] fetchTTSAudio: Called with HTML content."); // LOG 1
+  // Fetch TTS audio (now from Vercel Serverless Function, not Supabase Edge Function)
+  const fetchTTSAudio = async (textChunk) => {
+    console.log(
+      "[ArticleView] fetchTTSAudio: Called with text chunk for Vercel Serverless Function."
+    );
 
-    // The Edge Function will now handle HTML parsing.
-    // We send the raw HTML content directly.
     if (
-      !htmlContent ||
-      typeof htmlContent !== "string" ||
-      htmlContent.trim() === ""
+      !textChunk ||
+      typeof textChunk !== "string" ||
+      textChunk.trim() === ""
     ) {
-      toast.error("No HTML content available to read.");
+      toast.error("No text content available to read for this chunk.");
       console.warn(
-        "[ArticleView] fetchTTSAudio: No HTML content provided or empty."
-      ); // LOG 2
+        "[ArticleView] fetchTTSAudio: No text chunk provided or empty."
+      );
       setAudioLoading(false);
       return;
     }
     setAudioLoading(true);
-    setAudioUrl(null);
-    setCurrentTime(0);
-    setDuration(0);
     console.log(
-      "[ArticleView] fetchTTSAudio: audioLoading set to true. HTML content to send (start):",
-      htmlContent.substring(0, 100)
-    ); // LOG 3
+      "[ArticleView] fetchTTSAudio: audioLoading set to true. Text chunk to send (start):",
+      textChunk.substring(0, 100)
+    );
 
     try {
       console.log(
-        "[ArticleView] fetchTTSAudio: Attempting to invoke Supabase function text-to-speech with HTML."
-      ); // LOG 4
-      const response = await supabase.functions.invoke("text-to-speech", {
-        body: { text: htmlContent }, // Send HTML content directly
+        "[ArticleView] fetchTTSAudio: Attempting to POST to /api/text-to-speech with text chunk."
+      );
+      // Make a POST request to your Vercel Serverless Function
+      const response = await fetch("/api/text-to-speech", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ text: textChunk }), // Send plain text chunk
       });
-      console.log(
-        "[ArticleView] fetchTTSAudio: Supabase function response received:",
-        response
-      ); // LOG 5
 
-      if (response.error) {
+      console.log(
+        "[ArticleView] fetchTTSAudio: Vercel Serverless Function response status:",
+        response.status
+      );
+
+      if (!response.ok) {
+        // Attempt to parse error details if response is not OK
+        let errorDetails = `Server responded with ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorDetails =
+            errorData.error || errorData.details || JSON.stringify(errorData);
+        } catch {
+          // If parsing JSON fails, use the response text
+          errorDetails = await response.text();
+        }
+        throw new Error(errorDetails);
+      }
+
+      const contentType = response.headers.get("content-type") || "audio/mpeg";
+      const audioBlob = await response.blob(); // Use .blob() directly as the server sends binary audio
+
+      console.log(
+        "[ArticleView] fetchTTSAudio: Audio content type from serverless function:",
+        contentType
+      );
+
+      if (!audioBlob || audioBlob.size === 0) {
         throw new Error(
-          response.error.message || "TTS function invocation failed"
+          "No audio data received from TTS function (empty blob)."
         );
       }
 
-      if (!response.data) {
-        throw new Error("No audio data received from TTS function.");
-      }
-
-      const contentType = response.headers?.get("content-type") || "audio/mpeg";
-      console.log(
-        "[ArticleView] fetchTTSAudio: Audio content type:",
-        contentType
-      ); // LOG 6
-      const audioBlob = new Blob([response.data], { type: contentType });
       const url = URL.createObjectURL(audioBlob);
-      console.log("[ArticleView] fetchTTSAudio: Audio Blob URL created:", url); // LOG 7
+      console.log("[ArticleView] fetchTTSAudio: Audio Blob URL created:", url);
       setAudioUrl(url);
-      setIsAudioPlayerVisible(true);
+      if (!isAudioPlayerVisible) setIsAudioPlayerVisible(true);
     } catch (err) {
-      console.error("[ArticleView] fetchTTSAudio: Error:", err); // LOG 8
-      toast.error(`Failed to generate audio: ${err.message}`);
+      console.error("[ArticleView] fetchTTSAudio: Error:", err);
+      toast.error(
+        `Failed to generate audio for current chunk: ${
+          err.message || "Unknown error"
+        }`
+      );
       setAudioUrl(null);
-      setIsAudioPlayerVisible(false);
     } finally {
       setAudioLoading(false);
       console.log(
         "[ArticleView] fetchTTSAudio: finally block, audioLoading set to false."
-      ); // LOG 9
+      );
     }
   };
 
   // Handle Play/Pause for the new <audio> element
   const handlePlayPauseAudio = async () => {
     console.log("[ArticleView] handlePlayPauseAudio: Called."); // LOG A
-    console.log(
-      `[ArticleView] handlePlayPauseAudio: Initial states - audioLoading: ${audioLoading}, audioUrl: ${audioUrl}, article loaded: ${!!article}`
-    ); // LOG B
-    if (article) {
-      console.log(
-        `[ArticleView] handlePlayPauseAudio: article.content (HTML) available: ${!!article.content}, length: ${
-          article.content?.length
-        }`
-      ); // LOG C
-    }
-
     if (audioLoading) {
       toast.info("Audio is currently generating...");
       console.log(
@@ -224,16 +296,11 @@ function ArticleView() {
       return;
     }
 
-    if (!audioUrl && article && article.content) {
+    if (audioRef.current && audioUrl) {
+      // If audio is already loaded (current or previous chunk)
       console.log(
-        "[ArticleView] handlePlayPauseAudio: Condition met to fetch audio. Calling fetchTTSAudio with article.content (HTML)."
-      ); // LOG E
-      await fetchTTSAudio(article.content); // article.content is HTML, Edge function will parse
-    } else if (audioRef.current) {
-      console.log(
-        "[ArticleView] handlePlayPauseAudio: Condition met to play/pause existing audio. Audio paused:",
-        audioRef.current.paused
-      ); // LOG F
+        "[ArticleView] handlePlayPauseAudio: audioRef.current and audioUrl exist. Toggling play/pause."
+      );
       if (audioRef.current.paused) {
         audioRef.current
           .play()
@@ -242,20 +309,33 @@ function ArticleView() {
         audioRef.current.pause();
       }
       if (!isAudioPlayerVisible) setIsAudioPlayerVisible(true);
+    } else if (article && article.content) {
+      // Start new playback (first chunk or resuming after close)
+      console.log(
+        "[ArticleView] handlePlayPauseAudio: article.content available. Starting new playback / fetching first chunk."
+      );
+      const plainText = getPlainTextFromHTML(article.content);
+      const newChunks = chunkText(plainText);
+      setTextChunks(newChunks);
+
+      if (newChunks.length > 0) {
+        setCurrentChunkIndex(0);
+        console.log(
+          `[ArticleView] handlePlayPauseAudio: Fetching first chunk. Total chunks: ${newChunks.length}`
+        );
+        await fetchTTSAudio(newChunks[0]);
+        // Audio will autoplay via 'canplay' event if successfully fetched
+      } else {
+        toast.error("No text content found to read.");
+        console.warn(
+          "[ArticleView] handlePlayPauseAudio: No text chunks generated from article content."
+        );
+      }
     } else {
       console.warn(
-        "[ArticleView] handlePlayPauseAudio: No action taken - conditions not met."
-      ); // LOG G
-      if (!article || !article.content) {
-        toast.error("Article content not available to read.");
-        console.warn(
-          "[ArticleView] handlePlayPauseAudio: Article or article.content (HTML) not available."
-        ); // LOG H
-      } else if (audioUrl && !audioRef.current) {
-        console.warn(
-          "[ArticleView] handlePlayPauseAudio: audioUrl exists, but audioRef.current is null. This is unexpected."
-        ); // LOG I
-      }
+        "[ArticleView] handlePlayPauseAudio: No action taken - conditions not met (no article/content)."
+      );
+      toast.error("Article content not available to read.");
     }
   };
 
@@ -263,7 +343,6 @@ function ArticleView() {
   const handleCloseAudioPlayer = () => {
     if (audioRef.current) {
       audioRef.current.pause();
-      // Revoke the object URL to free up resources
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
@@ -273,6 +352,10 @@ function ArticleView() {
     setIsPlayingAudio(false);
     setCurrentTime(0);
     setDuration(0);
+    // Reset chunking state
+    setTextChunks([]);
+    setCurrentChunkIndex(0);
+    setAudioLoading(false); // Ensure loading is reset
   };
 
   // Effect for <audio> element event listeners
@@ -282,25 +365,56 @@ function ArticleView() {
       const handlePlay = () => setIsPlayingAudio(true);
       const handlePause = () => setIsPlayingAudio(false);
       const handleEnded = () => {
+        console.log(`[ArticleView] Audio chunk ${currentChunkIndex} ended.`);
         setIsPlayingAudio(false);
-        setCurrentTime(audioElement.duration); // Show full duration at end
-        // Optionally close player: handleCloseAudioPlayer();
+
+        const nextChunkIndex = currentChunkIndex + 1;
+        if (nextChunkIndex < textChunks.length) {
+          console.log(`[ArticleView] Playing next chunk: ${nextChunkIndex}`);
+          setCurrentChunkIndex(nextChunkIndex);
+          if (audioUrl) {
+            // Revoke current audioUrl before fetching next to free memory
+            URL.revokeObjectURL(audioUrl);
+          }
+          fetchTTSAudio(textChunks[nextChunkIndex]);
+        } else {
+          console.log("[ArticleView] All chunks played.");
+          toast.success("Finished reading article.");
+          setCurrentChunkIndex(0);
+          setTextChunks([]);
+          // setAudioUrl(null); // Keep audio loaded for potential replay of last chunk, or clear it
+        }
       };
-      const handleTimeUpdate = () => setCurrentTime(audioElement.currentTime);
-      const handleLoadedMetadata = () => setDuration(audioElement.duration);
+      const handleTimeUpdate = () => {
+        if (audioElement.duration) {
+          setCurrentTime(audioElement.currentTime);
+        }
+      };
+      const handleLoadedMetadata = () => {
+        setDuration(audioElement.duration);
+        // setCurrentTime(0); // Resetting currentTime here might be disruptive if a new chunk loads mid-seek
+      };
       const handleCanPlay = () => {
-        // Autoplay if it was intended (e.g., if audioUrl was just set and user clicked play)
-        if (isAudioPlayerVisible && !isPlayingAudio) {
-          // Check if it should start playing
-          audioElement
-            .play()
-            .catch((e) => console.error("Autoplay failed:", e));
+        if (
+          isAudioPlayerVisible &&
+          audioRef.current &&
+          audioRef.current.paused &&
+          textChunks.length > 0 &&
+          currentChunkIndex < textChunks.length
+        ) {
+          // This ensures that if a new chunk is loaded and ready, it tries to play.
+          // Especially important for auto-advancing to the next chunk.
+          audioElement.play().catch((e) => {
+            console.error("Autoplay of new chunk failed in onCanPlay:", e);
+            // Browser might block autoplay if there wasn't recent user interaction.
+            // User might need to click play again in such cases.
+          });
         }
       };
       const handleError = (e) => {
         console.error("Audio element error:", e);
-        toast.error("Error playing audio.");
-        handleCloseAudioPlayer(); // Close on error
+        toast.error("Error playing audio chunk.");
+        handleCloseAudioPlayer(); // Close player on significant error
       };
 
       audioElement.addEventListener("play", handlePlay);
@@ -309,10 +423,14 @@ function ArticleView() {
       audioElement.addEventListener("timeupdate", handleTimeUpdate);
       audioElement.addEventListener("loadedmetadata", handleLoadedMetadata);
       audioElement.addEventListener("canplay", handleCanPlay);
-      audioElement.addEventListener("error", handleError);
+      audioElement.addEventListener("error", handleError); // Added error listener here
 
-      // Set initial playback rate
-      audioElement.playbackRate = playbackSpeed;
+      audioElement.playbackRate = playbackSpeed; // Apply current playback speed
+
+      // If audioUrl is new and component expects it to play (e.g. after chunk fetch)
+      // the canplay event should trigger play().
+      // Explicitly calling load() might be needed if browser doesn't pick up src change well.
+      // audioElement.load(); // Consider if necessary
 
       return () => {
         audioElement.removeEventListener("play", handlePlay);
@@ -324,10 +442,16 @@ function ArticleView() {
           handleLoadedMetadata
         );
         audioElement.removeEventListener("canplay", handleCanPlay);
-        audioElement.removeEventListener("error", handleError);
+        audioElement.removeEventListener("error", handleError); // Remove error listener
       };
     }
-  }, [audioUrl, playbackSpeed]); // Rerun when audioUrl or playbackSpeed changes
+  }, [
+    audioUrl,
+    playbackSpeed,
+    textChunks,
+    currentChunkIndex,
+    isAudioPlayerVisible,
+  ]); // Added isAudioPlayerVisible and other relevant deps
 
   // Cleanup audio object URL on component unmount
   useEffect(() => {
@@ -1239,9 +1363,8 @@ function ArticleView() {
         <audio
           ref={audioRef}
           src={audioUrl}
-          preload="auto"
           style={{ display: "none" }}
-          // Event listeners are added via useEffect when audioUrl changes
+          // All event listeners are now managed by the useEffect above
         />
       )}
 
