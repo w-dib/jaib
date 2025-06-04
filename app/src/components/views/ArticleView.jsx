@@ -65,6 +65,7 @@ function ArticleView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const userId = user?.id; // ADDED: Define userId for stable dependency
   const [article, setArticle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -384,7 +385,8 @@ function ArticleView() {
 
   useEffect(() => {
     const fetchArticle = async () => {
-      if (!user) {
+      if (!userId) {
+        // UPDATED: Check userId instead of user
         setLoading(false);
         return;
       }
@@ -433,7 +435,7 @@ function ArticleView() {
     };
 
     fetchArticle();
-  }, [id, user]); // Dependency on id and user
+  }, [id, userId]); // UPDATED: Dependency on userId instead of user
 
   // Effect for calculating reading progress
   useEffect(() => {
@@ -460,7 +462,7 @@ function ArticleView() {
     return () => {
       // Only save if article is loaded, user exists, and progress is meaningful
       if (
-        user &&
+        userId && // UPDATED: Check userId
         article &&
         article.id &&
         readingProgress > 0 &&
@@ -473,7 +475,7 @@ function ArticleView() {
               .from("articles")
               .update({ last_read_scroll_percentage: readingProgress })
               .eq("id", article.id)
-              .eq("user_id", user.id); // Ensure user owns the article, RLS also protects this
+              .eq("user_id", user.id); // user.id is fine here, user object is from closure
 
             if (updateError) {
               console.error("Error saving scroll position:", updateError);
@@ -495,12 +497,13 @@ function ArticleView() {
         savePosition();
       }
     };
-  }, [user, article, readingProgress, supabase]); // Dependencies for the cleanup effect
+  }, [userId, article, readingProgress, supabase]); // UPDATED: Dependencies for the cleanup effect
 
   // EFFECT: Load saved highlights when article is loaded
   useEffect(() => {
     const loadSavedAnnotations = async () => {
-      if (!article || !article.id || !user || !user.id || !contentRef.current) {
+      if (!article || !article.id || !userId || !contentRef.current) {
+        // UPDATED: Check userId
         // Ensure contentRef.current is also available for findTextRectsInDOM
         return;
       }
@@ -515,7 +518,7 @@ function ArticleView() {
           .from("annotations")
           .select("*")
           .eq("article_id", article.id)
-          .eq("user_id", user.id);
+          .eq("user_id", userId); // UPDATED: Use userId in query
 
         if (error) {
           console.error("Error fetching saved annotations:", error);
@@ -558,7 +561,7 @@ function ArticleView() {
     const timerId = setTimeout(loadSavedAnnotations, 100);
 
     return () => clearTimeout(timerId); // Cleanup timeout
-  }, [article, user, supabase]); // Rerun if article or user changes
+  }, [article, userId, supabase]); // UPDATED: Rerun if article or userId changes
 
   // Recalculate progress when article loads
   useEffect(() => {

@@ -40,6 +40,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "../../components/ui/sheet";
+import { supabase } from "../lib/supabase";
 
 function Navbar({ user, onSignOut, onArticleAdded, onOpenPremiumModal }) {
   const [isAddUrlOpen, setIsAddUrlOpen] = useState(false);
@@ -48,14 +49,35 @@ function Navbar({ user, onSignOut, onArticleAdded, onOpenPremiumModal }) {
   const [isExtensionSetupOpen, setIsExtensionSetupOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Effect to show ExtensionSetupDialog on first login
+  // Effect to show ExtensionSetupDialog on first login if no articles exist
   useEffect(() => {
-    if (
-      user &&
-      localStorage.getItem("hasSeenExtensionSetupDialog") !== "true"
-    ) {
-      setIsExtensionSetupOpen(true);
-    }
+    const checkAndShowExtensionDialog = async () => {
+      if (
+        user &&
+        localStorage.getItem("hasSeenExtensionSetupDialog") !== "true"
+      ) {
+        try {
+          const { count, error } = await supabase
+            .from("articles")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", user.id);
+
+          if (error) {
+            console.error("Error fetching article count:", error);
+            // Optionally, decide if dialog should show on error or not. For now, it won't.
+            return;
+          }
+
+          if (count === 0) {
+            setIsExtensionSetupOpen(true);
+          }
+        } catch (err) {
+          console.error("Exception fetching article count:", err);
+        }
+      }
+    };
+
+    checkAndShowExtensionDialog();
   }, [user]); // Dependency array includes user, so it runs when user state changes
 
   const handleSearch = (searchTerm) => {
