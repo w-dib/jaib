@@ -7,6 +7,7 @@ import {
   Highlighter as HighlighterIcon,
   Share2 as ShareIcon,
   MoreHorizontal,
+  MoreVertical, // ADDED: For the new options button
 } from "lucide-react";
 // Import updated icons based on user feedback
 import {
@@ -60,6 +61,12 @@ import {
   SheetDescription,
 } from "../../../components/ui/sheet"; // IMPORTED: For Highlights Sheet
 import AudioPlayerCard from "./AudioPlayerCard"; // ADDED: Import AudioPlayerCard
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../../../components/ui/dropdown-menu"; // ADDED: Dropdown imports
 
 function ArticleView() {
   const { id } = useParams();
@@ -1057,52 +1064,6 @@ function ArticleView() {
               </Tooltip>
             </TooltipProvider>
 
-            {/* Tag Button - ADDED */}
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setIsTaggingDialogOpen(true)}
-                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                    aria-label="Tag article"
-                  >
-                    <Tag size={iconSize} className="text-gray-600" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Tag article</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            {/* Highlight Menu Button - Always visible now */}
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() =>
-                      setIsHighlightSheetOpen(!isHighlightSheetOpen)
-                    }
-                    className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                    aria-label={
-                      isHighlightSheetOpen
-                        ? "Close Highlight Menu"
-                        : "Open Highlight Menu"
-                    }
-                  >
-                    <Highlighter size={iconSize} className="text-gray-600" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {isHighlightSheetOpen
-                      ? "Close Highlight Menu"
-                      : "Open Highlight Menu"}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
             {/* ADDED: Audio Player Button */}
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -1159,52 +1120,38 @@ function ArticleView() {
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-
-            {/* Delete Button with Dialog */}
-            <Dialog
-              open={isDeleteDialogOpen}
-              onOpenChange={setIsDeleteDialogOpen}
-            >
-              <TooltipProvider delayDuration={200}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <DialogTrigger asChild>
-                      <button
-                        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-                        aria-label="Delete article"
-                      >
-                        <Trash2 size={iconSize} className="text-gray-600" />
-                      </button>
-                    </DialogTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Delete</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Confirm Deletion</DialogTitle>
-                  <DialogDescription>
-                    Are you sure you want to delete this article? This action
-                    cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                <DialogFooter>
-                  <DialogClose asChild>
-                    <Button variant="outline">Cancel</Button>
-                  </DialogClose>
-                  <Button variant="destructive" onClick={handleDeleteArticle}>
-                    Delete
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
           </div>{" "}
           {/* End of Centered Action Icons Group */}
-          {/* Right section: Placeholder to balance the back button */}
-          {/* Adjusted width slightly as two icons were removed */}
-          <div className="w-10 flex-shrink-0"></div> {/* Placeholder div */}
+          {/* Right section: Options button with DropdownMenu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors z-40"
+                aria-label="More options"
+              >
+                <MoreVertical size={iconSize} className="text-gray-600" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setIsTaggingDialogOpen(true)}>
+                <Tag size={16} className="mr-2" />
+                Tag URL
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setIsHighlightSheetOpen(!isHighlightSheetOpen)}
+              >
+                <Highlighter size={16} className="mr-2" />
+                Annotations
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setIsDeleteDialogOpen(true)}
+                className="text-red-600 focus:bg-red-50 focus:text-red-700"
+              >
+                <Trash2 size={16} className="mr-2" />
+                Delete URL
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         {/* Article content container - wraps title, byline, and main content */}
         {/* Apply max-width and center horizontally */}
@@ -1441,6 +1388,27 @@ function ArticleView() {
             </Button>
             <Button variant="destructive" onClick={confirmDeleteHighlight}>
               Delete Highlight
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ADDED BACK: Article Deletion Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this article? This action cannot
+              be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button variant="destructive" onClick={handleDeleteArticle}>
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -6,6 +6,19 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "../contexts/AuthContext";
 import { toast } from "sonner";
 
+// Helper function to extract the first valid URL from a string
+const extractFirstUrlFromString = (inputText) => {
+  if (typeof inputText !== "string") {
+    return null;
+  }
+  const urlRegex = /https?:\/\/[^\s]+/i;
+  const match = inputText.match(urlRegex);
+  if (match && match[0]) {
+    return match[0];
+  }
+  return null;
+};
+
 function AddUrlPrompt({ isOpen, onClose, onAdd, onNavigateToBulkImport }) {
   const [url, setUrl] = useState("");
   const { user } = useAuth();
@@ -31,9 +44,15 @@ function AddUrlPrompt({ isOpen, onClose, onAdd, onNavigateToBulkImport }) {
 
   const handleSingleUrlSubmit = async (e) => {
     e.preventDefault();
-    if (!url.trim() || !user) {
+    const extractedUrl = extractFirstUrlFromString(url);
+
+    if (!extractedUrl || !user) {
       if (!user) {
         setProcessingError("You must be logged in to add a URL.");
+      } else if (!extractedUrl) {
+        setProcessingError(
+          "Please enter a valid URL starting with http:// or https://."
+        );
       }
       return;
     }
@@ -42,27 +61,67 @@ function AddUrlPrompt({ isOpen, onClose, onAdd, onNavigateToBulkImport }) {
     setProcessingError(null);
 
     try {
-      const { data: functionResponse, error: functionError } =
-        await supabase.functions.invoke("fetch-article-data", {
-          body: { url: url.trim() },
-        });
+      const { data, error } = await supabase.functions.invoke(
+        "fetch-article-data",
+        {
+          body: { url: extractedUrl }, // Use the extracted URL
+        }
+      );
 
-      if (functionError) {
-        console.error("Edge function invocation error:", functionError);
-        throw new Error(
-          functionError.message || "Error fetching article data."
-        );
+      if (error) {
+        console.error("Edge function invocation error:", error); // Full error object
+
+        let userFriendlyMessage = "Save failed: Problem with site or URL."; // Default fallback
+
+        if (error.context && error.context.message) {
+          const edgeFuncMessage = String(error.context.message).toLowerCase();
+          const edgeFuncErrorType = error.context.error; // e.g., "ArticleProcessingError"
+
+          if (edgeFuncMessage.includes("timed out")) {
+            userFriendlyMessage = "Save failed: Site unresponsive.";
+          } else if (
+            edgeFuncMessage.includes("status: 403") ||
+            edgeFuncMessage.includes("forbidden")
+          ) {
+            userFriendlyMessage =
+              "Save failed: Site access denied (paywall/login?).";
+          } else if (
+            edgeFuncMessage.includes("status: 404") ||
+            edgeFuncMessage.includes("not found")
+          ) {
+            userFriendlyMessage = "Save failed: URL not found.";
+          } else if (edgeFuncMessage.includes("status: 50")) {
+            // Catches 500, 502, 503, etc. from target site
+            userFriendlyMessage = "Save failed: Error on site's end.";
+          } else if (
+            edgeFuncErrorType === "Invalid URL Format" ||
+            edgeFuncMessage.includes("invalid url")
+          ) {
+            userFriendlyMessage = "Invalid URL. Please check it.";
+          }
+          // If none of the specific conditions match, userFriendlyMessage remains the default
+          // or could be set to error.context.message if it's deemed suitable.
+        } else if (error.message) {
+          // Fallback to generic invoke error message if context is not available
+          if (error.message.toLowerCase().includes("networkerror")) {
+            userFriendlyMessage =
+              "Save failed: Network error. Check connection.";
+          } else if (
+            error.message.toLowerCase().includes("failed with status")
+          ) {
+            userFriendlyMessage = "Save failed: Server reported an issue.";
+          }
+          // Otherwise, the initial default "Save failed: Problem with site or URL." is used.
+        }
+        throw new Error(userFriendlyMessage);
       }
 
-      if (functionResponse.error) {
-        console.error(
-          "Error from Edge function logic:",
-          functionResponse.error
-        );
-        throw new Error(functionResponse.error);
-      }
-
-      const parsedArticle = functionResponse;
+      // If supabase.functions.invoke was successful (no top-level error),
+      // 'data' contains the response from the edge function.
+      // The edge function itself is designed to return non-2xx HTTP status for its own errors,
+      // which would be caught by the 'if (error)' block above.
+      // Therefore, if we reach here, 'data' should be the successfully parsed article.
+      const parsedArticle = data;
 
       const { data: insertedArticle, error: insertError } = await supabase
         .from("articles")
@@ -199,7 +258,7 @@ function AddUrlPrompt({ isOpen, onClose, onAdd, onNavigateToBulkImport }) {
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
                 />
                 <Input
-                  type="url"
+                  type="text"
                   placeholder="https://example.com/article"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}

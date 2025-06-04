@@ -7,6 +7,21 @@ import { Button } from "../../../components/ui/button";
 import SkeletonCard from "../SkeletonCard";
 import { toast } from "sonner";
 
+// Helper function to extract the first valid URL from a string
+const extractFirstUrlFromString = (inputText) => {
+  if (typeof inputText !== "string") {
+    return null; // Or handle error appropriately
+  }
+  // Regex to find the first occurrence of http:// or https:// followed by non-whitespace characters.
+  const urlRegex = /https?:\/\/[^\s]+/i;
+  const match = inputText.match(urlRegex);
+
+  if (match && match[0]) {
+    return match[0]; // Return the first matched URL
+  }
+  return null; // Return null if no URL with http(s) prefix is found
+};
+
 function SaveArticleHandler() {
   const { user } = useAuth();
   const location = useLocation();
@@ -17,7 +32,8 @@ function SaveArticleHandler() {
 
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
-    const articleUrl = queryParams.get("url");
+    const rawUrlFromQuery = queryParams.get("url");
+    const articleUrl = extractFirstUrlFromString(rawUrlFromQuery);
 
     if (!articleUrl) {
       if (status === "Processing") {
