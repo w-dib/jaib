@@ -29,6 +29,7 @@ import {
 import { Button } from "../../components/ui/button"; // Added Button import
 import { supabase } from "../lib/supabase"; // Corrected import path
 import { useAuth } from "../contexts/AuthContext"; // Corrected import path
+import ShareDialog from "./ShareDialog"; // ADDED: Import ShareDialog
 
 function ArticleCard({
   article,
@@ -46,6 +47,7 @@ function ArticleCard({
   const [isFavorited, setIsFavorited] = useState(article.is_favorite);
   const [isArchived, setIsArchived] = useState(article.is_read);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // Added state for delete dialog
+  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false); // ADDED: State for ShareDialog
 
   // Define orange shades for the placeholder
   const orangeShades = [
@@ -360,6 +362,15 @@ function ArticleCard({
                   <BookUp size={16} className="mr-2" />
                   {isArchived ? "Mark as Unread" : "Archive"}
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent card click, keep dropdown open if needed
+                    setIsShareDialogOpen(true);
+                  }}
+                >
+                  <Share2 size={16} className="mr-2" />
+                  Share
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={(e) => {
@@ -406,6 +417,15 @@ function ArticleCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Share Dialog for Article Card */}
+      {article && (
+        <ShareDialog
+          isOpen={isShareDialogOpen}
+          onOpenChange={setIsShareDialogOpen}
+          article={article}
+        />
+      )}
     </div>
   );
 }

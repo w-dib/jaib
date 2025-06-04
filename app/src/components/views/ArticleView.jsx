@@ -67,6 +67,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu"; // ADDED: Dropdown imports
+import ShareDialog from "../../components/ShareDialog"; // ADDED: Import ShareDialog (adjust path if needed)
 
 function ArticleView() {
   const { id } = useParams();
@@ -98,6 +99,7 @@ function ArticleView() {
   const [isDeleteHighlightDialogOpen, setIsDeleteHighlightDialogOpen] =
     useState(false);
   const [highlightToDeleteId, setHighlightToDeleteId] = useState(null);
+  const [isShareViewDialogOpen, setIsShareViewDialogOpen] = useState(false); // ADDED: State for ShareDialog
 
   // State for Audio Player (using HTML5 Audio + Edge Function)
   const [isAudioPlayerVisible, setIsAudioPlayerVisible] = useState(false);
@@ -1143,6 +1145,10 @@ function ArticleView() {
                 <Highlighter size={16} className="mr-2" />
                 Annotations
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsShareViewDialogOpen(true)}>
+                <ShareIcon size={16} className="mr-2" />
+                Share
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setIsDeleteDialogOpen(true)}
                 className="text-red-600 focus:bg-red-50 focus:text-red-700"
@@ -1413,6 +1419,15 @@ function ArticleView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Share Dialog for Article View */}
+      {article && (
+        <ShareDialog
+          isOpen={isShareViewDialogOpen}
+          onOpenChange={setIsShareViewDialogOpen}
+          article={article}
+        />
+      )}
     </>
   );
 }
