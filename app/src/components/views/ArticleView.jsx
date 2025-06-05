@@ -1130,6 +1130,7 @@ function ArticleView() {
                 variant="ghost"
                 size="sm"
                 className="flex items-center space-x-1"
+                onClick={() => setIsShareViewDialogOpen(true)}
               >
                 <ShareIcon size={16} />
                 <span>Share</span>
