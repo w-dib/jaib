@@ -129,6 +129,7 @@ function AddUrlPrompt({ isOpen, onClose, onAdd, onNavigateToBulkImport }) {
           url: parsedArticle.url,
           title: parsedArticle.title,
           content: parsedArticle.content,
+          text_content: parsedArticle.textContent,
           excerpt: parsedArticle.excerpt,
           byline: parsedArticle.byline,
           length: parsedArticle.length,

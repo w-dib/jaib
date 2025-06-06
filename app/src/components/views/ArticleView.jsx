@@ -24,6 +24,12 @@ import {
   RotateCcw, // ADDED: For Audio Player (Rewind)
   RotateCw, // ADDED: For Audio Player (Fast-forward)
   X as XIcon, // ADDED: For Audio Player (Close)
+  PlayIcon,
+  PauseIcon,
+  Bookmark,
+  Loader2,
+  ChevronLeft,
+  Settings,
 } from "lucide-react";
 
 // Import ShadCN Dialog components with corrected path
@@ -69,6 +75,44 @@ import {
 } from "../../../components/ui/dropdown-menu"; // ADDED: Dropdown imports
 import ShareDialog from "../../components/ShareDialog"; // ADDED: Import ShareDialog (adjust path if needed)
 
+/**
+ * Splits a long text into smaller chunks without cutting sentences.
+ * @param {string} text The full text to split.
+ * @param {number} maxLength The desired maximum length of a chunk.
+ * @returns {string[]} An array of text chunks.
+ */
+function splitTextIntoChunks(text, maxLength = 120) {
+  const chunks = [];
+  if (!text) return chunks;
+  let remainingText = text.replace(/\\n/g, " ").trim();
+  const sentenceEndings = /(?<=[.?!])\s+/;
+  while (remainingText.length > 0) {
+    if (remainingText.length <= maxLength) {
+      chunks.push(remainingText);
+      break;
+    }
+    let chunk = remainingText.substring(0, maxLength);
+    let lastSentenceEnd = -1;
+    const matches = [...chunk.matchAll(new RegExp(sentenceEndings, "g"))];
+    if (matches.length > 0) {
+      lastSentenceEnd =
+        matches[matches.length - 1].index +
+        matches[matches.length - 1][0].length;
+    }
+    if (lastSentenceEnd !== -1) {
+      chunk = remainingText.substring(0, lastSentenceEnd);
+    } else {
+      const lastSpace = chunk.lastIndexOf(" ");
+      if (lastSpace !== -1) {
+        chunk = chunk.substring(0, lastSpace);
+      }
+    }
+    chunks.push(chunk);
+    remainingText = remainingText.substring(chunk.length).trim();
+  }
+  return chunks;
+}
+
 function ArticleView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -101,366 +145,19 @@ function ArticleView() {
   const [highlightToDeleteId, setHighlightToDeleteId] = useState(null);
   const [isShareViewDialogOpen, setIsShareViewDialogOpen] = useState(false); // ADDED: State for ShareDialog
 
-  // State for Audio Player (using HTML5 Audio + Edge Function)
+  // State for Audio Player
   const [isAudioPlayerVisible, setIsAudioPlayerVisible] = useState(false);
-  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(null);
-  const audioRef = useRef(null); // Ref for the <audio> element
-  const [audioLoading, setAudioLoading] = useState(false); // To show loading state for TTS
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  // NEW: State for chunking
   const [textChunks, setTextChunks] = useState([]);
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
 
-  // Helper function to convert HTML to plain text
-  const getPlainTextFromHTML = (htmlString) => {
-    if (typeof DOMParser !== "undefined") {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlString, "text/html");
-      return doc.body.textContent || "";
-    } else {
-      // Fallback for non-browser environments (should not happen in client-side React)
-      return htmlString
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    }
-  };
-
-  // Helper function to chunk text
-  const chunkText = (text, maxLength = 4500) => {
-    // Max length slightly less than 5000 for safety
-    const chunks = [];
-    if (!text) return chunks;
-
-    let currentPosition = 0;
-    while (currentPosition < text.length) {
-      let endPosition = Math.min(currentPosition + maxLength, text.length);
-
-      // Try to not split words/sentences if possible, by looking for last space or punctuation.
-      if (endPosition < text.length) {
-        let lastSpace = text.lastIndexOf(" ", endPosition);
-        let lastPeriod = text.lastIndexOf(".", endPosition);
-        let lastQuestion = text.lastIndexOf("?", endPosition);
-        let lastExclamation = text.lastIndexOf("!", endPosition);
-
-        let splitAt = Math.max(
-          lastSpace,
-          lastPeriod,
-          lastQuestion,
-          lastExclamation
-        );
-
-        // If a good split point is found within a reasonable distance (e.g., last 20% of chunk)
-        // and it's not too far back (e.g. not splitting a 5000 char chunk into 1000 + 4000)
-        // A simple check: if a punctuation is found after maxLength * 0.8
-        if (
-          splitAt > currentPosition + maxLength * 0.8 &&
-          splitAt > currentPosition
-        ) {
-          endPosition = splitAt + 1; // Include the punctuation/space
-        } else if (
-          lastSpace > currentPosition + maxLength * 0.5 &&
-          lastSpace > currentPosition
-        ) {
-          // Fallback to last space if it's reasonably far
-          endPosition = lastSpace + 1;
-        }
-        // If sentence is longer than maxLength, it will be hard cut by Math.min earlier.
-      }
-      chunks.push(text.substring(currentPosition, endPosition));
-      currentPosition = endPosition;
-    }
-    return chunks.filter((chunk) => chunk.trim().length > 0);
-  };
-
-  // NEW: Handler for the main navigation audio button
-  const handleNavAudioButtonClick = () => {
-    if (isAudioPlayerVisible) {
-      // If player is visible, close it.
-      // handleCloseAudioPlayer handles pausing, cleaning up, and setting relevant states.
-      handleCloseAudioPlayer();
-    } else {
-      // If player is hidden, show it.
-      // The actual fetching/playing will be initiated by the AudioPlayerCard's own play button
-      // which uses the original handlePlayPauseAudio function.
-      setIsAudioPlayerVisible(true);
-      // Ensure audio is paused if it was somehow playing and card was hidden without full cleanup.
-      // This helps ensure the card starts in a predictable (paused) state if audioUrl already exists.
-      if (audioRef.current && !audioRef.current.paused) {
-        audioRef.current.pause(); // This will set isPlayingAudio = false via event listener
-      }
-    }
-  };
-
-  // Fetch TTS audio (now from Vercel Serverless Function, not Supabase Edge Function)
-  const fetchTTSAudio = async (textChunk) => {
-    console.log(
-      "[ArticleView] fetchTTSAudio: Called with text chunk for Vercel Serverless Function."
-    );
-
-    if (
-      !textChunk ||
-      typeof textChunk !== "string" ||
-      textChunk.trim() === ""
-    ) {
-      toast.error("No text content available to read for this chunk.");
-      console.warn(
-        "[ArticleView] fetchTTSAudio: No text chunk provided or empty."
-      );
-      setAudioLoading(false);
-      return;
-    }
-    setAudioLoading(true);
-    console.log(
-      "[ArticleView] fetchTTSAudio: audioLoading set to true. Text chunk to send (start):",
-      textChunk.substring(0, 100)
-    );
-
-    try {
-      console.log(
-        "[ArticleView] fetchTTSAudio: Attempting to POST to /api/text-to-speech with text chunk."
-      );
-      // Make a POST request to your Vercel Serverless Function
-      const response = await fetch("/api/text-to-speech", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: textChunk }), // Send plain text chunk
-      });
-
-      console.log(
-        "[ArticleView] fetchTTSAudio: Vercel Serverless Function response status:",
-        response.status
-      );
-
-      if (!response.ok) {
-        // Attempt to parse error details if response is not OK
-        let errorDetails = `Server responded with ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorDetails =
-            errorData.error || errorData.details || JSON.stringify(errorData);
-        } catch {
-          // If parsing JSON fails, use the response text
-          errorDetails = await response.text();
-        }
-        throw new Error(errorDetails);
-      }
-
-      const contentType = response.headers.get("content-type") || "audio/mpeg";
-      const audioBlob = await response.blob(); // Use .blob() directly as the server sends binary audio
-
-      console.log(
-        "[ArticleView] fetchTTSAudio: Audio content type from serverless function:",
-        contentType
-      );
-
-      if (!audioBlob || audioBlob.size === 0) {
-        throw new Error(
-          "No audio data received from TTS function (empty blob)."
-        );
-      }
-
-      const url = URL.createObjectURL(audioBlob);
-      console.log("[ArticleView] fetchTTSAudio: Audio Blob URL created:", url);
-      setAudioUrl(url);
-      if (!isAudioPlayerVisible) setIsAudioPlayerVisible(true);
-    } catch (err) {
-      console.error("[ArticleView] fetchTTSAudio: Error:", err);
-      toast.error(
-        `Failed to generate audio for current chunk: ${
-          err.message || "Unknown error"
-        }`
-      );
-      setAudioUrl(null);
-    } finally {
-      setAudioLoading(false);
-      console.log(
-        "[ArticleView] fetchTTSAudio: finally block, audioLoading set to false."
-      );
-    }
-  };
-
-  // Handle Play/Pause for the new <audio> element
-  const handlePlayPauseAudio = async () => {
-    console.log("[ArticleView] handlePlayPauseAudio: Called."); // LOG A
-    if (audioLoading) {
-      toast.info("Audio is currently generating...");
-      console.log(
-        "[ArticleView] handlePlayPauseAudio: Exiting because audioLoading is true."
-      ); // LOG D
-      return;
-    }
-
-    if (audioRef.current && audioUrl) {
-      // If audio is already loaded (current or previous chunk)
-      console.log(
-        "[ArticleView] handlePlayPauseAudio: audioRef.current and audioUrl exist. Toggling play/pause."
-      );
-      if (audioRef.current.paused) {
-        audioRef.current
-          .play()
-          .catch((e) => console.error("Error playing audio:", e));
-      } else {
-        audioRef.current.pause();
-      }
-      if (!isAudioPlayerVisible) setIsAudioPlayerVisible(true);
-    } else if (article && article.content) {
-      // Start new playback (first chunk or resuming after close)
-      console.log(
-        "[ArticleView] handlePlayPauseAudio: article.content available. Starting new playback / fetching first chunk."
-      );
-      const plainText = getPlainTextFromHTML(article.content);
-      const newChunks = chunkText(plainText);
-      setTextChunks(newChunks);
-
-      if (newChunks.length > 0) {
-        setCurrentChunkIndex(0);
-        console.log(
-          `[ArticleView] handlePlayPauseAudio: Fetching first chunk. Total chunks: ${newChunks.length}`
-        );
-        await fetchTTSAudio(newChunks[0]);
-        // Audio will autoplay via 'canplay' event if successfully fetched
-      } else {
-        toast.error("No text content found to read.");
-        console.warn(
-          "[ArticleView] handlePlayPauseAudio: No text chunks generated from article content."
-        );
-      }
-    } else {
-      console.warn(
-        "[ArticleView] handlePlayPauseAudio: No action taken - conditions not met (no article/content)."
-      );
-      toast.error("Article content not available to read.");
-    }
-  };
-
-  // Handle closing the audio player
-  const handleCloseAudioPlayer = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    }
-    setAudioUrl(null);
-    setIsAudioPlayerVisible(false);
-    setIsPlayingAudio(false);
-    setCurrentTime(0);
-    setDuration(0);
-    // Reset chunking state
-    setTextChunks([]);
-    setCurrentChunkIndex(0);
-    setAudioLoading(false); // Ensure loading is reset
-  };
-
-  // Effect for <audio> element event listeners
-  useEffect(() => {
-    const audioElement = audioRef.current;
-    if (audioElement) {
-      const handlePlay = () => setIsPlayingAudio(true);
-      const handlePause = () => setIsPlayingAudio(false);
-      const handleEnded = () => {
-        console.log(`[ArticleView] Audio chunk ${currentChunkIndex} ended.`);
-        setIsPlayingAudio(false);
-
-        const nextChunkIndex = currentChunkIndex + 1;
-        if (nextChunkIndex < textChunks.length) {
-          console.log(`[ArticleView] Playing next chunk: ${nextChunkIndex}`);
-          setCurrentChunkIndex(nextChunkIndex);
-          if (audioUrl) {
-            // Revoke current audioUrl before fetching next to free memory
-            URL.revokeObjectURL(audioUrl);
-          }
-          fetchTTSAudio(textChunks[nextChunkIndex]);
-        } else {
-          console.log("[ArticleView] All chunks played.");
-          toast.success("Finished reading article.");
-          setCurrentChunkIndex(0);
-          setTextChunks([]);
-          // setAudioUrl(null); // Keep audio loaded for potential replay of last chunk, or clear it
-        }
-      };
-      const handleTimeUpdate = () => {
-        if (audioElement.duration) {
-          setCurrentTime(audioElement.currentTime);
-        }
-      };
-      const handleLoadedMetadata = () => {
-        setDuration(audioElement.duration);
-        // setCurrentTime(0); // Resetting currentTime here might be disruptive if a new chunk loads mid-seek
-      };
-      const handleCanPlay = () => {
-        if (
-          isAudioPlayerVisible &&
-          audioRef.current &&
-          audioRef.current.paused &&
-          textChunks.length > 0 &&
-          currentChunkIndex < textChunks.length
-        ) {
-          // This ensures that if a new chunk is loaded and ready, it tries to play.
-          // Especially important for auto-advancing to the next chunk.
-          audioElement.play().catch((e) => {
-            console.error("Autoplay of new chunk failed in onCanPlay:", e);
-            // Browser might block autoplay if there wasn't recent user interaction.
-            // User might need to click play again in such cases.
-          });
-        }
-      };
-      const handleError = (e) => {
-        console.error("Audio element error:", e);
-        toast.error("Error playing audio chunk.");
-        handleCloseAudioPlayer(); // Close player on significant error
-      };
-
-      audioElement.addEventListener("play", handlePlay);
-      audioElement.addEventListener("pause", handlePause);
-      audioElement.addEventListener("ended", handleEnded);
-      audioElement.addEventListener("timeupdate", handleTimeUpdate);
-      audioElement.addEventListener("loadedmetadata", handleLoadedMetadata);
-      audioElement.addEventListener("canplay", handleCanPlay);
-      audioElement.addEventListener("error", handleError); // Added error listener here
-
-      audioElement.playbackRate = playbackSpeed; // Apply current playback speed
-
-      // If audioUrl is new and component expects it to play (e.g. after chunk fetch)
-      // the canplay event should trigger play().
-      // Explicitly calling load() might be needed if browser doesn't pick up src change well.
-      // audioElement.load(); // Consider if necessary
-
-      return () => {
-        audioElement.removeEventListener("play", handlePlay);
-        audioElement.removeEventListener("pause", handlePause);
-        audioElement.removeEventListener("ended", handleEnded);
-        audioElement.removeEventListener("timeupdate", handleTimeUpdate);
-        audioElement.removeEventListener(
-          "loadedmetadata",
-          handleLoadedMetadata
-        );
-        audioElement.removeEventListener("canplay", handleCanPlay);
-        audioElement.removeEventListener("error", handleError); // Remove error listener
-      };
-    }
-  }, [
-    audioUrl,
-    playbackSpeed,
-    textChunks,
-    currentChunkIndex,
-    isAudioPlayerVisible,
-  ]); // Added isAudioPlayerVisible and other relevant deps
-
-  // Cleanup audio object URL on component unmount
-  useEffect(() => {
-    return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
-  }, [audioUrl]);
+  // State for Audio Player
+  const [audioState, setAudioState] = useState({
+    isPlaying: false,
+    isLoading: false,
+    currentTime: 0,
+    duration: 0,
+  });
+  const audioRef = useRef(null);
 
   // Helper function to find text in DOM and return its rects
   // For simplicity with current selector_info, this finds the FIRST match.
@@ -1008,6 +705,101 @@ function ArticleView() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const fetchAndPlayChunk = async (chunkIndex, chunks) => {
+    if (chunkIndex >= chunks.length) {
+      console.log("All chunks played.");
+      setIsAudioPlayerVisible(false); // Hide player when finished
+      return;
+    }
+
+    setAudioState((prev) => ({ ...prev, isLoading: true }));
+    try {
+      const response = await fetch("/api/text-to-speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: chunks[chunkIndex] }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.details || "Failed to fetch audio chunk.");
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      audioRef.current.src = audioUrl;
+      audioRef.current
+        .play()
+        .catch((e) => console.error("Audio play failed", e));
+      setCurrentChunkIndex(chunkIndex);
+    } catch (error) {
+      console.error("Error fetching audio for chunk:", chunkIndex, error);
+      toast.error(`Error generating audio: ${error.message}`);
+      setAudioState((prev) => ({
+        ...prev,
+        isLoading: false,
+        isPlaying: false,
+      }));
+    }
+  };
+
+  const handlePlayPauseAudio = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (audioState.isPlaying) {
+      audio.pause();
+    } else {
+      // If src is set, just resume
+      if (audio.src) {
+        audio.play().catch((e) => console.error("Audio play failed", e));
+      } else {
+        // First time playing: split text and fetch the first chunk
+        const chunks = splitTextIntoChunks(article?.text_content);
+        if (chunks.length > 0) {
+          setTextChunks(chunks);
+          fetchAndPlayChunk(0, chunks);
+        } else {
+          toast.error("No text content to play.");
+        }
+      }
+    }
+  };
+
+  const handleAudioEnded = () => {
+    // When a chunk ends, automatically fetch and play the next one
+    fetchAndPlayChunk(currentChunkIndex + 1, textChunks);
+  };
+
+  const handleCloseAudioPlayer = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      if (audioRef.current.src) {
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+      audioRef.current.removeAttribute("src");
+    }
+    setIsAudioPlayerVisible(false);
+    setTextChunks([]);
+    setCurrentChunkIndex(0);
+    setAudioState({
+      isPlaying: false,
+      isLoading: false,
+      currentTime: 0,
+      duration: 0,
+    });
+  };
+
+  // This function ONLY toggles the card's visibility. Renamed for clarity.
+  const toggleAudioPlayerVisibility = () => {
+    if (isAudioPlayerVisible) {
+      handleCloseAudioPlayer();
+    } else {
+      setIsAudioPlayerVisible(true);
+    }
+  };
+
   if (loading) {
     return <Skeleton />; // Use the skeleton component
   }
@@ -1196,19 +988,18 @@ function ArticleView() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={handleNavAudioButtonClick} // UPDATED onClick handler
+                    onClick={toggleAudioPlayerVisibility} // Use the correct visibility handler
                     className="p-2 rounded-full hover:bg-gray-100 transition-colors"
                     aria-label={
-                      isAudioPlayerVisible
+                      isAudioPlayerVisible // Check visibility state
                         ? "Close Audio Player"
                         : "Play Article"
-                    } // UPDATED aria-label
-                    // Removed disabled={audioLoading} - nav button can always close the player
+                    }
                   >
-                    {isAudioPlayerVisible ? ( // UPDATED icon logic
+                    {isAudioPlayerVisible ? ( // Check visibility state
                       <HeadphoneOff
                         size={iconSize}
-                        className="text-orange-500" // Active color when player is visible
+                        className="text-orange-500"
                       />
                     ) : (
                       <Headphones size={iconSize} className="text-gray-600" />
@@ -1217,11 +1008,10 @@ function ArticleView() {
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>
-                    {isAudioPlayerVisible
+                    {isAudioPlayerVisible // Check visibility state
                       ? "Close Audio Player"
                       : "Play Article"}
-                  </p>{" "}
-                  {/* UPDATED tooltip text */}
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -1360,21 +1150,40 @@ function ArticleView() {
       </div>
 
       {/* Hidden HTML5 Audio Element */}
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          style={{ display: "none" }}
-          // All event listeners are now managed by the useEffect above
-        />
-      )}
+      <audio
+        ref={audioRef}
+        style={{ display: "none" }}
+        onPlay={() =>
+          setAudioState((prev) => ({
+            ...prev,
+            isPlaying: true,
+            isLoading: false,
+          }))
+        }
+        onPause={() => setAudioState((prev) => ({ ...prev, isPlaying: false }))}
+        onTimeUpdate={() =>
+          audioRef.current &&
+          setAudioState((prev) => ({
+            ...prev,
+            currentTime: audioRef.current.currentTime,
+          }))
+        }
+        onLoadedData={() =>
+          audioRef.current &&
+          setAudioState((prev) => ({
+            ...prev,
+            duration: audioRef.current.duration,
+          }))
+        }
+        onEnded={handleAudioEnded}
+      />
 
       {/* Integrated AudioPlayerCard */}
       {isAudioPlayerVisible && article && (
         <AudioPlayerCard
           article={article}
-          isPlaying={isPlayingAudio}
-          isLoading={audioLoading} // Pass loading state
+          isPlaying={audioState.isPlaying}
+          isLoading={audioState.isLoading}
           onPlayPause={handlePlayPauseAudio}
           onClose={handleCloseAudioPlayer}
           onRewind={() => {
@@ -1387,21 +1196,19 @@ function ArticleView() {
           onFastForward={() => {
             if (audioRef.current)
               audioRef.current.currentTime = Math.min(
-                duration,
+                audioRef.current.duration,
                 audioRef.current.currentTime + 5
               );
           }}
           onSpeedChange={(speed) => {
-            setPlaybackSpeed(speed);
             if (audioRef.current) audioRef.current.playbackRate = speed;
           }}
-          playbackSpeed={playbackSpeed}
-          currentTime={currentTime}
-          duration={duration}
+          playbackSpeed={audioRef.current?.playbackRate || 1}
+          currentTime={audioState.currentTime}
+          duration={audioState.duration}
           onSeek={(newTime) => {
             if (audioRef.current) {
               audioRef.current.currentTime = newTime;
-              setCurrentTime(newTime); // Also update state directly for smoother UI
             }
           }}
           isMobile={isMobile}

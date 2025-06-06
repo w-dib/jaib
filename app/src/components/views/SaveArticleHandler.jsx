@@ -87,6 +87,7 @@ function SaveArticleHandler() {
                 url: articleUrl,
                 title: parsedArticle.title,
                 content: parsedArticle.content,
+                text_content: parsedArticle.textContent,
                 excerpt: parsedArticle.excerpt,
                 byline: parsedArticle.byline,
                 length: parsedArticle.length,

@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gradio/client": "^1.15.1",
+    "@huggingface/inference": "^4.0.2",
     "@postlight/mercury-parser": "^2.2.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
