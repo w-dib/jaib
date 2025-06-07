@@ -34,6 +34,7 @@ function TagsPage() {
   const [selectedTag, setSelectedTag] = useState(null);
   const [articlesForTag, setArticlesForTag] = useState([]);
   const [loadingArticles, setLoadingArticles] = useState(false);
+  const [sortOrder, setSortOrder] = useState("desc");
 
   // State for Edit Tag Dialog
   const [isEditTagDialogOpen, setIsEditTagDialogOpen] = useState(false);
@@ -105,7 +106,7 @@ function TagsPage() {
         .from("articles")
         .select("*")
         .in("id", articleIds)
-        .order("saved_at", { ascending: false });
+        .order("saved_at", { ascending: sortOrder === "asc" });
 
       if (articlesError) throw articlesError;
 
@@ -128,6 +129,13 @@ function TagsPage() {
     setSelectedTag(null);
     setArticlesForTag([]);
     setError(null);
+  };
+
+  const handleSetSortOrder = (newOrder) => {
+    setSortOrder(newOrder);
+    if (selectedTag) {
+      fetchArticlesForTag(selectedTag.id);
+    }
   };
 
   const openEditTagDialog = (tag) => {
@@ -421,6 +429,8 @@ function TagsPage() {
             onArticleDeleted={handleArticleAction}
             onArticleArchived={handleArticleAction}
             onArticleFavorited={handleArticleAction}
+            onSetSortOrder={handleSetSortOrder}
+            sortOrder={sortOrder}
           />
         )}
       </div>

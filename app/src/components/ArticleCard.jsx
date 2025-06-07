@@ -8,6 +8,7 @@ import {
   BookDown,
   BookUp,
   Loader2,
+  Tag,
 } from "lucide-react"; // Import necessary Lucide icons
 import {
   DropdownMenu,
@@ -30,6 +31,7 @@ import { Button } from "../../components/ui/button"; // Added Button import
 import { supabase } from "../lib/supabase"; // Corrected import path
 import { useAuth } from "../contexts/AuthContext"; // Corrected import path
 import ShareDialog from "./ShareDialog"; // ADDED: Import ShareDialog
+import TaggingDialog from "./views/TaggingDialog"; // ADDED: Import TaggingDialog
 
 function ArticleCard({
   article,
@@ -48,6 +50,7 @@ function ArticleCard({
   const [isArchived, setIsArchived] = useState(article.is_read);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false); // Added state for delete dialog
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false); // ADDED: State for ShareDialog
+  const [isTaggingDialogOpen, setIsTaggingDialogOpen] = useState(false); // ADDED: State for TaggingDialog
 
   // Define orange shades for the placeholder
   const orangeShades = [
@@ -141,8 +144,13 @@ function ArticleCard({
   };
 
   const handleCardClick = (e) => {
-    // Prevent navigation if clicking on elements that should not trigger it (e.g. dropdown trigger, dialog content)
-    if (e.target.closest(".actions-trigger-button, .dialog-content-wrapper")) {
+    // Prevent navigation if clicking on elements that should not trigger it
+    if (
+      e.target.closest(".actions-trigger-button") || // Dropdown trigger
+      e.target.closest(".dialog-content-wrapper") || // Dialog content
+      e.target.closest(".dropdown-menu-content") || // Dropdown menu content
+      e.target.closest("[role='dialog']") // Any dialog element
+    ) {
       return;
     }
     navigate(`/article/${article.id}`);
@@ -246,6 +254,9 @@ function ArticleCard({
         case "share":
           console.log("Share action clicked (currently no-op)");
           break;
+        case "tag":
+          console.log("Tag action clicked (currently no-op)");
+          break;
         default:
           console.warn("Unknown action:", action);
       }
@@ -339,11 +350,14 @@ function ArticleCard({
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
-                className="dialog-content-wrapper"
+                className="dropdown-menu-content dialog-content-wrapper"
                 onClick={(e) => e.stopPropagation()}
               >
                 <DropdownMenuItem
-                  onClick={(e) => handleActionClick(e, "favorite")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleActionClick(e, "favorite");
+                  }}
                   className={
                     isFavorited
                       ? "text-orange-600 focus:bg-orange-50 focus:text-orange-700"
@@ -357,14 +371,26 @@ function ArticleCard({
                   {isFavorited ? "Unfavorite" : "Favorite"}
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={(e) => handleActionClick(e, "archive")}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleActionClick(e, "archive");
+                  }}
                 >
                   <BookUp size={16} className="mr-2" />
                   {isArchived ? "Mark as Unread" : "Archive"}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={(e) => {
-                    e.stopPropagation(); // Prevent card click, keep dropdown open if needed
+                    e.stopPropagation();
+                    setIsTaggingDialogOpen(true);
+                  }}
+                >
+                  <Tag size={16} className="mr-2" />
+                  Tag URL
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
                     setIsShareDialogOpen(true);
                   }}
                 >
@@ -387,7 +413,21 @@ function ArticleCard({
         </div>
       </div>
       {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <Dialog
+        open={isDeleteDialogOpen}
+        onOpenChange={(open) => {
+          setIsDeleteDialogOpen(open);
+          if (!open) {
+            // Prevent card click when dialog is closed
+            const event = new MouseEvent("click", {
+              bubbles: true,
+              cancelable: true,
+              view: window,
+            });
+            event.stopPropagation();
+          }
+        }}
+      >
         <DialogContent
           className="dialog-content-wrapper sm:max-w-md"
           onClick={(e) => e.stopPropagation()}
@@ -422,8 +462,40 @@ function ArticleCard({
       {article && (
         <ShareDialog
           isOpen={isShareDialogOpen}
-          onOpenChange={setIsShareDialogOpen}
+          onOpenChange={(open) => {
+            setIsShareDialogOpen(open);
+            if (!open) {
+              // Prevent card click when dialog is closed
+              const event = new MouseEvent("click", {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+              });
+              event.stopPropagation();
+            }
+          }}
           article={article}
+        />
+      )}
+
+      {/* Tagging Dialog for Article Card */}
+      {article && (
+        <TaggingDialog
+          isOpen={isTaggingDialogOpen}
+          onOpenChange={(open) => {
+            setIsTaggingDialogOpen(open);
+            if (!open) {
+              // Prevent card click when dialog is closed
+              const event = new MouseEvent("click", {
+                bubbles: true,
+                cancelable: true,
+                view: window,
+              });
+              event.stopPropagation();
+            }
+          }}
+          articleId={article.id}
+          userId={user?.id}
         />
       )}
     </div>

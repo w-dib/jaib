@@ -131,3 +131,197 @@ Stores user-specific highlights and notes on articles.
 - An `article` can have many `annotations` made by its `user_id` owner.
 
 This schema provides a robust foundation for the core features of the Jaib application.
+
+I have an edge function in supabase, using the supabase dashboard (you will not see it here in the root directory, and that's by design. I'll paste its code below:
+
+// Follow this setup guide to integrate the Deno language server with your editor:
+// https://deno.land/manual/getting_started/setup_your_environment
+// This enables autocomplete, go to definition, etc.
+// Setup type definitions for built-in Supabase Runtime APIs
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { Readability } from "npm:@mozilla/readability";
+import { DOMParser } from "npm:linkedom";
+// Helper function to set CORS headers
+const corsHeaders = {
+"Access-Control-Allow-Origin": "_",
+"Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+"Access-Control-Allow-Methods": "POST, OPTIONS"
+};
+console.log("fetch-article-data function initializing (v3 with Readability & enhanced image extraction)");
+Deno.serve(async (req)=>{
+console.log("Request received:", req.method, req.url);
+if (req.method === "OPTIONS") {
+console.log("Handling OPTIONS request");
+return new Response("ok", {
+headers: corsHeaders
+});
+}
+try {
+let articleUrl;
+try {
+const body = await req.json();
+articleUrl = body.url;
+} catch (jsonError) {
+console.error("Failed to parse request body as JSON:", jsonError);
+return new Response(JSON.stringify({
+error: "Invalid JSON payload. Ensure 'url' is provided."
+}), {
+status: 400,
+headers: {
+...corsHeaders,
+"Content-Type": "application/json"
+}
+});
+}
+console.log("Attempting to parse URL:", articleUrl);
+if (!articleUrl) {
+console.error("No URL provided in request body");
+return new Response(JSON.stringify({
+error: "No URL provided"
+}), {
+status: 400,
+headers: {
+...corsHeaders,
+"Content-Type": "application/json"
+}
+});
+}
+try {
+new URL(articleUrl); // Validate URL
+} catch (urlError) {
+console.error("Invalid URL format for:", articleUrl, "Error:", urlError);
+return new Response(JSON.stringify({
+error: "Invalid URL format"
+}), {
+status: 400,
+headers: {
+...corsHeaders,
+"Content-Type": "application/json"
+}
+});
+}
+console.log(`Fetching URL: ${articleUrl}`);
+const response = await fetch(articleUrl, {
+headers: {
+"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,_/\*;q=0.8" // More comprehensive accept header
+}
+});
+if (!response.ok) {
+console.error(`Failed to fetch URL: ${articleUrl}, status: ${response.status} ${response.statusText}`);
+let responseBodyText = "Could not read response body";
+try {
+responseBodyText = await response.text();
+} catch (e) {}
+throw new Error(`HTTP error! status: ${response.status} ${response.statusText}. Response: ${responseBodyText.substring(0, 200)}`);
+}
+const html = await response.text();
+console.log(`HTML received, length: ${html.length}. Parsing with DOMParser...`);
+// Use a type assertion for the document object that Readability expects
+const doc = new DOMParser().parseFromString(html, "text/html");
+if (!doc) {
+console.error("Failed to parse HTML document from URL:", articleUrl);
+throw new Error("Failed to parse HTML document");
+}
+let preferredImageUrl = null;
+// Step 1: Try common meta tags from the original document
+const metaSelectors = [
+'meta[property="og:image"]',
+'meta[name="twitter:image"]',
+'meta[itemprop="image"]'
+];
+for (const selector of metaSelectors){
+const metaTag = doc.querySelector(selector);
+if (metaTag && metaTag.getAttribute("content")) {
+const imageUrl = metaTag.getAttribute("content").trim();
+if (imageUrl) {
+try {
+preferredImageUrl = new URL(imageUrl, articleUrl).href;
+console.log(`Found image via ${selector}:`, preferredImageUrl);
+break; // Found an image, no need to check other meta tags
+} catch (e) {
+console.warn(`Could not construct absolute URL for ${selector} content:`, imageUrl, e.message);
+}
+}
+}
+}
+console.log("DOM parsed. Applying Readability...");
+const reader = new Readability(doc, {});
+const article = reader.parse();
+if (!article) {
+console.error("Failed to parse article with Readability from URL:", articleUrl);
+throw new Error("Failed to parse article with Readability");
+}
+console.log("Article parsed successfully with Readability:", article.title);
+// Step 2: If no image from meta tags, try to extract from Readability's article.content
+if (!preferredImageUrl && article.content) {
+console.log("No meta image found, trying to extract from Readability's HTML content.");
+try {
+// Parse Readability's cleaned HTML content to find an image
+const readabilityDoc = new DOMParser().parseFromString(article.content, "text/html");
+const firstImageInContent = readabilityDoc.querySelector('img');
+if (firstImageInContent) {
+const imgSrcAttr = firstImageInContent.getAttribute('src');
+if (imgSrcAttr) {
+const imgSrc = imgSrcAttr.trim();
+if (imgSrc && !imgSrc.startsWith("data:")) {
+try {
+preferredImageUrl = new URL(imgSrc, articleUrl).href;
+console.log("Found and resolved image from Readability content:", preferredImageUrl);
+} catch (e) {
+if (imgSrc.startsWith("http://") || imgSrc.startsWith("https://")) {
+preferredImageUrl = imgSrc;
+console.log("Used image src directly from Readability content (resolution failed or deemed absolute):", preferredImageUrl);
+} else {
+console.warn("Could not resolve image src from Readability content:", imgSrc, "against base:", articleUrl, "Error:", e.message);
+}
+}
+} else if (imgSrc && imgSrc.startsWith("data:")) {
+console.log("Found data URI image in Readability content, skipping for now.");
+}
+} else {
+console.log("First image in Readability content has no src attribute.");
+}
+} else {
+console.log("No img tags found in Readability content.");
+}
+} catch (e) {
+console.warn("Error parsing Readability content for images:", e.message);
+}
+} else if (preferredImageUrl) {
+console.log("Using image from meta tags:", preferredImageUrl);
+} else {
+console.log("No image found from meta tags, and no Readability content (or image in it).");
+}
+const data = {
+title: article.title || "Untitled",
+content: article.content,
+textContent: article.textContent,
+excerpt: article.excerpt,
+byline: article.byline,
+length: article.length,
+url: articleUrl,
+lead_image_url: preferredImageUrl,
+};
+console.log("Final response data:", data);
+return new Response(JSON.stringify(data), {
+headers: {
+...corsHeaders,
+"Content-Type": "application/json"
+},
+status: 200
+});
+} catch (error) {
+console.error("Error in Edge Function:", error.message, error.stack);
+const errorMessage = error instanceof Error ? error.message : String(error);
+return new Response(JSON.stringify({
+error: "Failed to process article: " + errorMessage
+}), {
+status: 500,
+headers: {
+...corsHeaders,
+"Content-Type": "application/json"
+}
+});
+}
+});

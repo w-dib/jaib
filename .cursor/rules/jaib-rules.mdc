@@ -1,0 +1,44 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+We're building Jaib - a lightweight web application and chrome extension for reading and saving articles, similar to Pocket.
+
+---
+
+Technology Stack:
+- Frontend: React (JSX), Vite
+- Styling: Tailwind CSS (v4.1.7). 4.1.7 is different than the previous versions, in that it doesn't use tailwind.config.js. We've gone ahead and added tailwind.config.js and the typography plugin in index.css to mimic older versions so that you don't hallucinate incorrect information.
+- UI Components: ShadCN UI (latest version, components located in app/components/ui/). When adding new shadcn components, please inform me first so I can install them via npm; components must always be imported from app/components/ui/.
+- Icons: Lucide React
+- Backend/Database: Supabase (for authentication, edge functions and data storage)
+
+Rules of Engagement:
+1. I will propose terminal commands for you to review and run; you will not execute them directly. I will pause for your confirmation after proposing a command.
+2. All ShadCN UI components are located in and must be referenced from the app/components/ui/ directory.
+3. We are working primarily within the  directory, located inside the main jaib/ project directory (which also contains an /extension directory for later work).
+4. I have an edge function in supabase to fetch article data, called fetch-article-data. It's built using the supabase dashboard, and is not visible in local. For all supabase information, refer to app\supabase_readme.md
+5. When I ask you for git commit messages, be short and to the point.
+
+---
+
+
+Our supabase schemas are located here: app\supabase_readme.md
+
+\ is our main project directory.
+
+\app  is our vite react JSX app
+
+\extension  is our lightweight google chrome extension.
+
+---
+
+Our .env.local file is stored under \app and has the below variables:
+
+   VITE_SUPABASE_URL
+   VITE_SUPABASE_ANON_KEY
+   HUGGING_FACE_API_TOKEN
+   ELEVEN_LABS_API_TOKEN
+   SUPABASE_SERVICE_KEY
+

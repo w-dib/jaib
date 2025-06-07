@@ -15,14 +15,22 @@ function SaveArticleHandler() {
   const navigate = useNavigate();
   const [status, setStatus] = useState("Processing");
   const [error, setError] = useState(null);
+  const [rawText, setRawText] = useState("");
   const hasAttemptedSave = useRef(false);
 
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
     const rawUrlFromQuery = queryParams.get("url");
+
+    console.log("Raw shared text:", rawUrlFromQuery);
+
+    setRawText(rawUrlFromQuery || "");
     const articleUrl = extractFirstUrlFromString(rawUrlFromQuery);
 
+    console.log("Extracted URL:", articleUrl);
+
     if (!articleUrl) {
+      console.log("No URL found in text, setting error state");
       if (status === "Processing") {
         setStatus("Error");
         setError("No valid URL found in the provided text.");
@@ -39,12 +47,14 @@ function SaveArticleHandler() {
     }
 
     if (user && articleUrl && !hasAttemptedSave.current) {
+      console.log("Attempting to save article with URL:", articleUrl);
       hasAttemptedSave.current = true;
 
       const saveArticle = async () => {
         setStatus("Saving...");
         try {
           const savedArticle = await processAndSaveArticle(articleUrl, user.id);
+          console.log("Article saved successfully:", savedArticle);
 
           toast.success("Article saved!", {
             position: "top-right",
@@ -80,6 +90,13 @@ function SaveArticleHandler() {
       saveArticle();
     }
   }, [user, location, navigate, status]);
+
+  const handleRetry = () => {
+    console.log("Retrying with raw text:", rawText);
+    hasAttemptedSave.current = false;
+    setStatus("Processing");
+    setError(null);
+  };
 
   return (
     <div
@@ -123,12 +140,27 @@ function SaveArticleHandler() {
           {error && (
             <p className="text-sm text-gray-600 mt-2">Error: {error}</p>
           )}
-          <Button
-            onClick={() => navigate("/")}
-            className="mt-4 bg-orange-500 hover:bg-orange-600 text-white"
-          >
-            Go to Saves
-          </Button>
+          {error === "No valid URL found in the provided text." && rawText && (
+            <div className="mt-4 p-4 bg-gray-100 rounded-lg max-w-md">
+              <p className="text-sm text-gray-600 mb-2">Shared text:</p>
+              <p className="text-sm text-gray-800 break-words">{rawText}</p>
+            </div>
+          )}
+          <div className="flex gap-3 mt-4">
+            <Button
+              onClick={() => navigate("/")}
+              variant="outline"
+              className="bg-white hover:bg-gray-50"
+            >
+              Go to Saves
+            </Button>
+            <Button
+              onClick={handleRetry}
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+            >
+              Try Again
+            </Button>
+          </div>
         </>
       )}
     </div>
