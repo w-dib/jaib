@@ -194,7 +194,6 @@ function ArticleView() {
   // State for Audio Player
   const [isAudioPlayerVisible, setIsAudioPlayerVisible] = useState(false);
   const [textChunks, setTextChunks] = useState([]);
-  const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
 
   // State for Audio Player
   const [audioState, setAudioState] = useState({
@@ -202,9 +201,18 @@ function ArticleView() {
     isLoading: false,
     currentTime: 0,
     duration: 0,
+    isInitialLoading: false, // ADDED: Track initial loading state
   });
   const audioRef = useRef(null);
-  const nextAudioRef = useRef(null); // ADDED: Reference for preloading next chunk
+  const nextAudioRef = useRef(null);
+  const audioContext = useRef(null);
+  const audioBuffers = useRef([]);
+  const chunkGenerationCancelled = useRef(false);
+  const currentGeneratingChunk = useRef(null);
+  const audioSource = useRef(null); // ADDED: Track current audio source
+
+  // Add this state to track which buffer we're currently playing
+  const [currentBufferIndex, setCurrentBufferIndex] = useState(0);
 
   // Helper function to find text in DOM and return its rects
   // For simplicity with current selector_info, this finds the FIRST match.
@@ -752,15 +760,199 @@ function ArticleView() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // Helper function to concatenate audio buffers
+  const concatenateAudioBuffers = async (newBuffer) => {
+    if (!audioContext.current) {
+      audioContext.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
+    }
+
+    console.log("[concatenateAudioBuffers] Starting to process new buffer");
+
+    // Convert MP3 blob to AudioBuffer
+    const arrayBuffer = await newBuffer.arrayBuffer();
+    const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
+
+    audioBuffers.current.push(audioBuffer);
+
+    // Calculate total duration
+    const totalDuration = audioBuffers.current.reduce(
+      (acc, buffer) => acc + buffer.duration,
+      0
+    );
+    console.log(
+      "[concatenateAudioBuffers] Total buffers:",
+      audioBuffers.current.length,
+      "Total duration:",
+      totalDuration
+    );
+
+    setAudioState((prev) => ({
+      ...prev,
+      duration: totalDuration,
+    }));
+
+    // If this is the first buffer and we're supposed to be playing, start playback
+    if (audioBuffers.current.length === 1 && audioState.isPlaying) {
+      console.log(
+        "[concatenateAudioBuffers] First buffer received, starting playback"
+      );
+      playAudioBuffer();
+    }
+
+    return audioBuffer;
+  };
+
+  const playAudioBuffer = (startTime = 0) => {
+    console.log("[playAudioBuffer] Starting playback", {
+      startTime,
+      buffersCount: audioBuffers.current.length,
+      currentGeneratingChunk: currentGeneratingChunk.current,
+      chunkGenerationCancelled: chunkGenerationCancelled.current,
+      currentBufferIndex,
+    });
+
+    if (!audioContext.current || audioBuffers.current.length === 0) return;
+
+    // Stop any existing playback
+    if (audioSource.current) {
+      try {
+        audioSource.current.stop();
+        audioSource.current.disconnect();
+      } catch (e) {
+        console.error("Error stopping current source:", e);
+      }
+    }
+
+    try {
+      // Create a new buffer source
+      audioSource.current = audioContext.current.createBufferSource();
+
+      // Calculate total length and create a new buffer
+      const totalLength = audioBuffers.current.reduce(
+        (acc, buffer) => acc + buffer.length,
+        0
+      );
+      const combinedBuffer = audioContext.current.createBuffer(
+        audioBuffers.current[0].numberOfChannels,
+        totalLength,
+        audioBuffers.current[0].sampleRate
+      );
+
+      // Copy data from all buffers
+      for (
+        let channel = 0;
+        channel < combinedBuffer.numberOfChannels;
+        channel++
+      ) {
+        const channelData = combinedBuffer.getChannelData(channel);
+        let offset = 0;
+        audioBuffers.current.forEach((buffer) => {
+          channelData.set(buffer.getChannelData(channel), offset);
+          offset += buffer.length;
+        });
+      }
+
+      // Set up the source
+      audioSource.current.buffer = combinedBuffer;
+      audioSource.current.connect(audioContext.current.destination);
+
+      // Set up playback
+      audioSource.current.start(0, startTime);
+      console.log(
+        "[playAudioBuffer] Started playback with buffer duration:",
+        combinedBuffer.duration
+      );
+
+      // Update state
+      setAudioState((prev) => ({
+        ...prev,
+        isPlaying: true,
+        isInitialLoading: false,
+      }));
+
+      // Handle playback end
+      audioSource.current.onended = () => {
+        console.log("[playAudioBuffer:onended]", {
+          currentGeneratingChunk: currentGeneratingChunk.current,
+          chunkGenerationCancelled: chunkGenerationCancelled.current,
+          buffersCount: audioBuffers.current.length,
+          audioContextTime: audioContext.current?.currentTime,
+          totalChunks: textChunks.length,
+          currentBufferIndex,
+        });
+
+        setAudioState((prev) => ({ ...prev, isPlaying: false }));
+
+        // Only close the player if we've played all chunks AND reached the end
+        if (
+          currentGeneratingChunk.current === null &&
+          audioBuffers.current.length === textChunks.length
+        ) {
+          console.log(
+            "[playAudioBuffer:onended] Closing audio player - all chunks complete"
+          );
+          setIsAudioPlayerVisible(false);
+          setCurrentBufferIndex(0); // Reset for next time
+        } else {
+          console.log(
+            "[playAudioBuffer:onended] Not closing - still have chunks to play"
+          );
+          // If we have more buffers, continue playing from the next chunk
+          if (audioBuffers.current.length > 0) {
+            // Calculate the duration of all buffers up to the current index
+            const previousDuration = audioBuffers.current
+              .slice(0, currentBufferIndex + 1)
+              .reduce((acc, buffer) => acc + buffer.duration, 0);
+
+            setCurrentBufferIndex((prev) => prev + 1);
+            playAudioBuffer(previousDuration);
+          }
+        }
+      };
+    } catch (e) {
+      console.error("Error during playback setup:", e);
+      setAudioState((prev) => ({
+        ...prev,
+        isPlaying: false,
+        isInitialLoading: false,
+      }));
+    }
+  };
+
   const fetchAndPlayChunk = async (chunkIndex, chunks) => {
+    console.log("[fetchAndPlayChunk] Starting", {
+      chunkIndex,
+      totalChunks: chunks.length,
+      cancelled: chunkGenerationCancelled.current,
+    });
+
     if (chunkIndex >= chunks.length) {
-      console.log("All chunks played.");
-      setIsAudioPlayerVisible(false); // Hide player when finished
+      console.log("[fetchAndPlayChunk] All chunks processed");
+      currentGeneratingChunk.current = null; // Only set to null when truly done
+      setAudioState((prev) => ({ ...prev, isInitialLoading: false }));
       return;
     }
 
-    setAudioState((prev) => ({ ...prev, isLoading: true }));
+    if (chunkGenerationCancelled.current) {
+      console.log(
+        "[fetchAndPlayChunk] Chunk generation cancelled, saving current index:",
+        chunkIndex
+      );
+      currentGeneratingChunk.current = chunkIndex;
+      return;
+    }
+
+    // Track that we're generating this chunk
+    currentGeneratingChunk.current = chunkIndex;
+
+    // Only show loading state during initial chunk gathering
+    if (audioBuffers.current.length === 0) {
+      setAudioState((prev) => ({ ...prev, isInitialLoading: true }));
+    }
+
     try {
+      console.log("[fetchAndPlayChunk] Fetching chunk", chunkIndex);
       const response = await fetch("/api/text-to-speech", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -773,107 +965,161 @@ function ArticleView() {
       }
 
       const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
+      await concatenateAudioBuffers(audioBlob);
 
-      // If this is the first chunk or we're switching to a new chunk
-      if (!audioRef.current.src) {
-        audioRef.current.src = audioUrl;
-        audioRef.current
-          .play()
-          .catch((e) => console.error("Audio play failed", e));
-      } else {
-        // Preload the next chunk
-        nextAudioRef.current.src = audioUrl;
-        nextAudioRef.current.load();
+      // If this was the first chunk, start playing
+      if (chunkIndex === 0) {
+        console.log(
+          "[fetchAndPlayChunk] First chunk received, starting playback"
+        );
+        playAudioBuffer();
       }
 
-      setCurrentChunkIndex(chunkIndex);
-
-      // Preload the next chunk if available
-      if (chunkIndex + 1 < chunks.length) {
-        const nextResponse = await fetch("/api/text-to-speech", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: chunks[chunkIndex + 1] }),
-        });
-
-        if (nextResponse.ok) {
-          const nextAudioBlob = await nextResponse.blob();
-          const nextAudioUrl = URL.createObjectURL(nextAudioBlob);
-          nextAudioRef.current.src = nextAudioUrl;
-          nextAudioRef.current.load();
-        }
+      // Continue fetching next chunk if not cancelled
+      if (!chunkGenerationCancelled.current && chunkIndex + 1 < chunks.length) {
+        console.log("[fetchAndPlayChunk] Fetching next chunk");
+        fetchAndPlayChunk(chunkIndex + 1, chunks);
+      } else if (chunkIndex + 1 >= chunks.length) {
+        // All chunks loaded
+        console.log("[fetchAndPlayChunk] All chunks loaded");
+        currentGeneratingChunk.current = null; // Only set to null when truly done
+        setAudioState((prev) => ({
+          ...prev,
+          isInitialLoading: false,
+        }));
       }
     } catch (error) {
-      console.error("Error fetching audio for chunk:", chunkIndex, error);
+      console.error("[fetchAndPlayChunk] Error:", error);
       toast.error(`Error generating audio: ${error.message}`);
       setAudioState((prev) => ({
         ...prev,
-        isLoading: false,
+        isInitialLoading: false,
         isPlaying: false,
       }));
     }
   };
 
-  const handleAudioEnded = () => {
-    // Switch to the preloaded chunk
-    if (nextAudioRef.current.src) {
-      // Clean up the old audio URL
-      if (audioRef.current.src) {
-        URL.revokeObjectURL(audioRef.current.src);
+  const handlePlayPauseAudio = () => {
+    console.log("[handlePlayPauseAudio] Called", {
+      isPlaying: audioState.isPlaying,
+      buffersCount: audioBuffers.current.length,
+      currentGeneratingChunk: currentGeneratingChunk.current,
+      currentBufferIndex,
+    });
+
+    if (!audioContext.current) {
+      audioContext.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
+    }
+
+    if (audioState.isPlaying) {
+      // Pause playback
+      if (audioContext.current.state === "running") {
+        audioContext.current.suspend();
       }
-
-      // Swap the audio elements
-      const tempSrc = audioRef.current.src;
-      audioRef.current.src = nextAudioRef.current.src;
-      nextAudioRef.current.src = tempSrc;
-
-      // Ensure the audio is loaded before playing
-      audioRef.current.load();
-
-      // Play the next chunk
-      audioRef.current
-        .play()
-        .catch((e) => console.error("Audio play failed", e));
-
-      // Update the chunk index
-      setCurrentChunkIndex((prev) => prev + 1);
-
-      // Preload the next chunk if available
-      if (currentChunkIndex + 2 < textChunks.length) {
-        fetchAndPlayChunk(currentChunkIndex + 2, textChunks);
-      }
+      setAudioState((prev) => ({ ...prev, isPlaying: false }));
+      // Cancel ongoing chunk generation
+      chunkGenerationCancelled.current = true;
+      console.log(
+        "[handlePlayPauseAudio] Paused playback and cancelled chunk generation"
+      );
     } else {
-      // If no preloaded chunk, fetch and play the next one
-      fetchAndPlayChunk(currentChunkIndex + 1, textChunks);
+      // Resume or start playback
+      if (audioBuffers.current.length > 0) {
+        console.log("[handlePlayPauseAudio] Resuming existing audio");
+        // If we have a suspended context, resume it
+        if (audioContext.current.state === "suspended") {
+          audioContext.current.resume();
+          setAudioState((prev) => ({ ...prev, isPlaying: true }));
+        } else {
+          // Calculate the duration of all buffers up to the current index
+          const previousDuration = audioBuffers.current
+            .slice(0, currentBufferIndex)
+            .reduce((acc, buffer) => acc + buffer.duration, 0);
+
+          // Otherwise start playback from current time
+          playAudioBuffer(previousDuration + audioContext.current.currentTime);
+        }
+
+        // Resume chunk generation if we were in the middle of it
+        if (currentGeneratingChunk.current !== null) {
+          console.log(
+            "[handlePlayPauseAudio] Resuming chunk generation from:",
+            currentGeneratingChunk.current
+          );
+          chunkGenerationCancelled.current = false;
+          fetchAndPlayChunk(currentGeneratingChunk.current, textChunks);
+          currentGeneratingChunk.current = null;
+        }
+      } else {
+        // First time playing
+        console.log("[handlePlayPauseAudio] Starting first playback");
+        setCurrentBufferIndex(0); // Reset index when starting fresh
+        if (!contentRef.current) {
+          toast.error("Content not ready yet.");
+          return;
+        }
+        if (textChunks.length === 0) {
+          const articleText = extractTextFromDOM(contentRef.current);
+          const chunks = splitTextIntoChunks(articleText);
+          setTextChunks(chunks);
+          console.log("[handlePlayPauseAudio] Created chunks:", chunks.length);
+        }
+        if (textChunks.length > 0) {
+          setAudioState((prev) => ({ ...prev, isPlaying: true }));
+          chunkGenerationCancelled.current = false;
+          fetchAndPlayChunk(0, textChunks);
+        } else {
+          toast.error("No text content to play.");
+        }
+      }
     }
   };
 
   const handleCloseAudioPlayer = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      if (audioRef.current.src) {
-        URL.revokeObjectURL(audioRef.current.src);
-      }
-      audioRef.current.removeAttribute("src");
+    chunkGenerationCancelled.current = true;
+    currentGeneratingChunk.current = null;
+
+    if (audioSource.current) {
+      audioSource.current.stop();
+      audioSource.current.disconnect();
     }
-    if (nextAudioRef.current) {
-      nextAudioRef.current.pause();
-      if (nextAudioRef.current.src) {
-        URL.revokeObjectURL(nextAudioRef.current.src);
-      }
-      nextAudioRef.current.removeAttribute("src");
+
+    // Clean up audio buffers and context
+    audioBuffers.current = [];
+    if (audioContext.current) {
+      audioContext.current.close();
+      audioContext.current = null;
     }
+
     setIsAudioPlayerVisible(false);
     setTextChunks([]);
-    setCurrentChunkIndex(0);
     setAudioState({
       isPlaying: false,
       isLoading: false,
+      isInitialLoading: false,
       currentTime: 0,
       duration: 0,
     });
   };
+
+  // Add interval to update current time
+  useEffect(() => {
+    let timeUpdateInterval;
+    if (audioState.isPlaying && audioContext.current) {
+      timeUpdateInterval = setInterval(() => {
+        setAudioState((prev) => ({
+          ...prev,
+          currentTime: audioContext.current.currentTime,
+        }));
+      }, 100);
+    }
+    return () => {
+      if (timeUpdateInterval) {
+        clearInterval(timeUpdateInterval);
+      }
+    };
+  }, [audioState.isPlaying]);
 
   // This function ONLY toggles the card's visibility. Renamed for clarity.
   const toggleAudioPlayerVisibility = () => {
@@ -893,40 +1139,7 @@ function ArticleView() {
     // Split the text into chunks
     const chunks = splitTextIntoChunks(articleText);
     setTextChunks(chunks);
-    setCurrentChunkIndex(0);
     setIsAudioPlayerVisible(true);
-  };
-
-  const handlePlayPauseAudio = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (audioState.isPlaying) {
-      audio.pause();
-    } else {
-      // If src is set, just resume
-      if (audio.src) {
-        audio.play().catch((e) => console.error("Audio play failed", e));
-      } else {
-        // First time playing: get text from DOM and split into chunks
-        if (!contentRef.current) {
-          toast.error("Content not ready yet.");
-          return;
-        }
-        // If we don't have chunks yet, prepare them
-        if (textChunks.length === 0) {
-          const articleText = extractTextFromDOM(contentRef.current);
-          const chunks = splitTextIntoChunks(articleText);
-          setTextChunks(chunks);
-        }
-        // Start playing the first chunk
-        if (textChunks.length > 0) {
-          fetchAndPlayChunk(0, textChunks);
-        } else {
-          toast.error("No text content to play.");
-        }
-      }
-    }
   };
 
   if (loading) {
@@ -1304,7 +1517,12 @@ function ArticleView() {
             duration: audioRef.current.duration,
           }))
         }
-        onEnded={handleAudioEnded}
+        onEnded={() => {
+          if (audioContext.current?.currentTime >= audioState.duration) {
+            setAudioState((prev) => ({ ...prev, isPlaying: false }));
+            setIsAudioPlayerVisible(false);
+          }
+        }}
       />
       <audio ref={nextAudioRef} style={{ display: "none" }} />
 
@@ -1313,32 +1531,35 @@ function ArticleView() {
         <AudioPlayerCard
           article={article}
           isPlaying={audioState.isPlaying}
-          isLoading={audioState.isLoading}
+          isLoading={audioState.isInitialLoading}
           onPlayPause={handlePlayPauseAudio}
           onClose={handleCloseAudioPlayer}
           onRewind={() => {
-            if (audioRef.current)
-              audioRef.current.currentTime = Math.max(
-                0,
-                audioRef.current.currentTime - 5
-              );
+            if (audioContext.current) {
+              const newTime = Math.max(0, audioContext.current.currentTime - 5);
+              playAudioBuffer(newTime);
+            }
           }}
           onFastForward={() => {
-            if (audioRef.current)
-              audioRef.current.currentTime = Math.min(
-                audioRef.current.duration,
-                audioRef.current.currentTime + 5
+            if (audioContext.current) {
+              const newTime = Math.min(
+                audioState.duration,
+                audioContext.current.currentTime + 5
               );
+              playAudioBuffer(newTime);
+            }
           }}
           onSpeedChange={(speed) => {
-            if (audioRef.current) audioRef.current.playbackRate = speed;
+            if (audioSource.current) {
+              audioSource.current.playbackRate.value = speed;
+            }
           }}
-          playbackSpeed={audioRef.current?.playbackRate || 1}
+          playbackSpeed={audioSource.current?.playbackRate.value || 1}
           currentTime={audioState.currentTime}
           duration={audioState.duration}
           onSeek={(newTime) => {
-            if (audioRef.current) {
-              audioRef.current.currentTime = newTime;
+            if (audioContext.current) {
+              playAudioBuffer(newTime);
             }
           }}
           isMobile={isMobile}
