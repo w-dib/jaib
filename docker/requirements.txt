@@ -1,6 +1,0 @@
-fastapi>=0.95.0,<0.96.0
-uvicorn[standard]>=0.21.0,<0.22.0
-python-multipart>=0.0.6,<0.1.0
-chatterbox-tts>=0.0.3
-torchaudio>=2.0.0
-torch>=2.0.0

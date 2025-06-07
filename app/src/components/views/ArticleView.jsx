@@ -113,6 +113,29 @@ function splitTextIntoChunks(text, maxLength = 120) {
   return chunks;
 }
 
+// Add this function after the other utility functions and before the component
+function extractTextFromDOM(element) {
+  let text = "";
+  const walk = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
+
+  let node;
+  while ((node = walk.nextNode())) {
+    // Skip text from script and style elements
+    if (!["SCRIPT", "STYLE"].includes(node.parentElement.tagName)) {
+      // Add a space after each text node to ensure words don't get merged
+      text += node.textContent.trim() + " ";
+    }
+  }
+
+  // Clean up extra whitespace and normalize line endings
+  return text.replace(/\s+/g, " ").trim();
+}
+
 function ArticleView() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -744,6 +767,24 @@ function ArticleView() {
     }
   };
 
+  const handleStartTTS = () => {
+    if (!contentRef.current) return;
+
+    // Extract text from the rendered DOM
+    const articleText = extractTextFromDOM(contentRef.current);
+
+    // Split the text into chunks
+    const chunks = splitTextIntoChunks(articleText);
+    setTextChunks(chunks);
+    setCurrentChunkIndex(0);
+    setIsAudioPlayerVisible(true);
+
+    // Start playing the first chunk
+    if (chunks.length > 0) {
+      fetchAndPlayChunk(0, chunks);
+    }
+  };
+
   const handlePlayPauseAudio = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -755,8 +796,13 @@ function ArticleView() {
       if (audio.src) {
         audio.play().catch((e) => console.error("Audio play failed", e));
       } else {
-        // First time playing: split text and fetch the first chunk
-        const chunks = splitTextIntoChunks(article?.text_content);
+        // First time playing: get text from DOM and split into chunks
+        if (!contentRef.current) {
+          toast.error("Content not ready yet.");
+          return;
+        }
+        const articleText = extractTextFromDOM(contentRef.current);
+        const chunks = splitTextIntoChunks(articleText);
         if (chunks.length > 0) {
           setTextChunks(chunks);
           fetchAndPlayChunk(0, chunks);
@@ -796,7 +842,7 @@ function ArticleView() {
     if (isAudioPlayerVisible) {
       handleCloseAudioPlayer();
     } else {
-      setIsAudioPlayerVisible(true);
+      handleStartTTS(); // Use our new function that gets text from DOM
     }
   };
 

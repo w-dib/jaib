@@ -42,3 +42,53 @@ Our .env.local file is stored under \app and has the below variables:
    ELEVEN_LABS_API_TOKEN
    SUPABASE_SERVICE_KEY
 
+---
+
+## Text-to-Speech (TTS) Architecture
+
+We use a self-hosted Kokoro TTS model (https://github.com/remsky/Kokoro-FastAPI/blob/master/README.md) running on RunPod for text-to-speech functionality. The architecture is as follows:
+
+### Components:
+1. **Frontend (ArticleView.jsx)**:
+   - Uses DOM traversal to extract article text exactly as rendered
+   - Splits text into manageable chunks using sentence boundaries
+   - Manages audio playback state and UI
+   - Located in: `app/src/components/views/ArticleView.jsx`
+
+2. **API Layer (text-to-speech.js)**:
+   - Serverless function that acts as a proxy to RunPod
+   - Handles text chunks and returns audio data
+   - Located in: `app/api/text-to-speech.js`
+
+3. **TTS Engine**:
+   - Kokoro TTS model running on RunPod
+   - Endpoint: Custom RunPod instance URL
+   - Model: `kokoro` with voice `af_bella`
+   - Format: MP3 audio output
+
+### Flow:
+1. User clicks headphones icon in article view
+2. Frontend extracts text from DOM using TreeWalker
+3. Text is split into chunks at natural sentence boundaries
+4. Each chunk is sent to `/api/text-to-speech`
+5. API forwards request to RunPod instance
+6. RunPod generates audio and returns MP3
+7. Audio is played in sequence through HTML5 Audio element
+
+### Key Files:
+- `app/src/components/views/ArticleView.jsx`: Frontend logic and audio player
+- `app/api/text-to-speech.js`: API proxy to RunPod
+- `app/src/components/views/AudioPlayerCard.jsx`: Audio player UI component
+
+### Environment Variables:
+- RunPod endpoint URL is currently hardcoded in `text-to-speech.js`
+- Future improvement: Move to environment variable
+
+### Notes:
+- Text extraction happens from rendered DOM, not database content
+- This ensures TTS matches exactly what the user sees
+- Chunks are processed sequentially to handle long articles
+- Audio player supports pause/resume and maintains chunk sequence
+
+
+
