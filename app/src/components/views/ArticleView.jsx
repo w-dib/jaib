@@ -785,11 +785,6 @@ function ArticleView() {
     setTextChunks(chunks);
     setCurrentChunkIndex(0);
     setIsAudioPlayerVisible(true);
-
-    // Start playing the first chunk
-    if (chunks.length > 0) {
-      fetchAndPlayChunk(0, chunks);
-    }
   };
 
   const handlePlayPauseAudio = () => {
@@ -808,11 +803,15 @@ function ArticleView() {
           toast.error("Content not ready yet.");
           return;
         }
-        const articleText = extractTextFromDOM(contentRef.current);
-        const chunks = splitTextIntoChunks(articleText);
-        if (chunks.length > 0) {
+        // If we don't have chunks yet, prepare them
+        if (textChunks.length === 0) {
+          const articleText = extractTextFromDOM(contentRef.current);
+          const chunks = splitTextIntoChunks(articleText);
           setTextChunks(chunks);
-          fetchAndPlayChunk(0, chunks);
+        }
+        // Start playing the first chunk
+        if (textChunks.length > 0) {
+          fetchAndPlayChunk(0, textChunks);
         } else {
           toast.error("No text content to play.");
         }
