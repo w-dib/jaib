@@ -81,7 +81,7 @@ import ShareDialog from "../../components/ShareDialog"; // ADDED: Import ShareDi
  * @param {number} maxLength The desired maximum length of a chunk.
  * @returns {string[]} An array of text chunks.
  */
-function splitTextIntoChunks(text, maxLength = 120) {
+function splitTextIntoChunks(text, maxLength = 300) {
   const chunks = [];
   if (!text) return chunks;
   let remainingText = text.replace(/\\n/g, " ").trim();
@@ -102,9 +102,17 @@ function splitTextIntoChunks(text, maxLength = 120) {
     if (lastSentenceEnd !== -1) {
       chunk = remainingText.substring(0, lastSentenceEnd);
     } else {
-      const lastSpace = chunk.lastIndexOf(" ");
-      if (lastSpace !== -1) {
-        chunk = chunk.substring(0, lastSpace);
+      // If no sentence ending found, try to find a comma or other natural pause
+      const naturalPause = /[,;:]\s+/;
+      const pauseMatch = chunk.match(naturalPause);
+      if (pauseMatch) {
+        lastSentenceEnd = pauseMatch.index + pauseMatch[0].length;
+        chunk = remainingText.substring(0, lastSentenceEnd);
+      } else {
+        const lastSpace = chunk.lastIndexOf(" ");
+        if (lastSpace !== -1) {
+          chunk = chunk.substring(0, lastSpace);
+        }
       }
     }
     chunks.push(chunk);
@@ -134,13 +142,21 @@ function extractTextFromDOM(element) {
   while ((node = walk.nextNode())) {
     // Skip text from script and style elements
     if (!["SCRIPT", "STYLE"].includes(node.parentElement.tagName)) {
-      // Add a space after each text node to ensure words don't get merged
-      text += node.textContent.trim() + " ";
+      // Preserve paragraph breaks and other structural elements
+      const parentTag = node.parentElement.tagName.toLowerCase();
+      if (parentTag === "p" || parentTag === "div") {
+        text += node.textContent.trim() + "\n\n";
+      } else {
+        text += node.textContent.trim() + " ";
+      }
     }
   }
 
-  // Clean up extra whitespace and normalize line endings
-  return text.replace(/\s+/g, " ").trim();
+  // Clean up extra whitespace while preserving paragraph breaks
+  return text
+    .replace(/\s+/g, " ") // Replace multiple spaces with single space
+    .replace(/\n\s*\n/g, "\n\n") // Preserve paragraph breaks
+    .trim();
 }
 
 function ArticleView() {
@@ -188,6 +204,7 @@ function ArticleView() {
     duration: 0,
   });
   const audioRef = useRef(null);
+  const nextAudioRef = useRef(null); // ADDED: Reference for preloading next chunk
 
   // Helper function to find text in DOM and return its rects
   // For simplicity with current selector_info, this finds the FIRST match.
@@ -758,11 +775,35 @@ function ArticleView() {
       const audioBlob = await response.blob();
       const audioUrl = URL.createObjectURL(audioBlob);
 
-      audioRef.current.src = audioUrl;
-      audioRef.current
-        .play()
-        .catch((e) => console.error("Audio play failed", e));
+      // If this is the first chunk or we're switching to a new chunk
+      if (!audioRef.current.src) {
+        audioRef.current.src = audioUrl;
+        audioRef.current
+          .play()
+          .catch((e) => console.error("Audio play failed", e));
+      } else {
+        // Preload the next chunk
+        nextAudioRef.current.src = audioUrl;
+        nextAudioRef.current.load();
+      }
+
       setCurrentChunkIndex(chunkIndex);
+
+      // Preload the next chunk if available
+      if (chunkIndex + 1 < chunks.length) {
+        const nextResponse = await fetch("/api/text-to-speech", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: chunks[chunkIndex + 1] }),
+        });
+
+        if (nextResponse.ok) {
+          const nextAudioBlob = await nextResponse.blob();
+          const nextAudioUrl = URL.createObjectURL(nextAudioBlob);
+          nextAudioRef.current.src = nextAudioUrl;
+          nextAudioRef.current.load();
+        }
+      }
     } catch (error) {
       console.error("Error fetching audio for chunk:", chunkIndex, error);
       toast.error(`Error generating audio: ${error.message}`);
@@ -771,6 +812,75 @@ function ArticleView() {
         isLoading: false,
         isPlaying: false,
       }));
+    }
+  };
+
+  const handleAudioEnded = () => {
+    // Switch to the preloaded chunk
+    if (nextAudioRef.current.src) {
+      // Clean up the old audio URL
+      if (audioRef.current.src) {
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+
+      // Swap the audio elements
+      const tempSrc = audioRef.current.src;
+      audioRef.current.src = nextAudioRef.current.src;
+      nextAudioRef.current.src = tempSrc;
+
+      // Ensure the audio is loaded before playing
+      audioRef.current.load();
+
+      // Play the next chunk
+      audioRef.current
+        .play()
+        .catch((e) => console.error("Audio play failed", e));
+
+      // Update the chunk index
+      setCurrentChunkIndex((prev) => prev + 1);
+
+      // Preload the next chunk if available
+      if (currentChunkIndex + 2 < textChunks.length) {
+        fetchAndPlayChunk(currentChunkIndex + 2, textChunks);
+      }
+    } else {
+      // If no preloaded chunk, fetch and play the next one
+      fetchAndPlayChunk(currentChunkIndex + 1, textChunks);
+    }
+  };
+
+  const handleCloseAudioPlayer = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      if (audioRef.current.src) {
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+      audioRef.current.removeAttribute("src");
+    }
+    if (nextAudioRef.current) {
+      nextAudioRef.current.pause();
+      if (nextAudioRef.current.src) {
+        URL.revokeObjectURL(nextAudioRef.current.src);
+      }
+      nextAudioRef.current.removeAttribute("src");
+    }
+    setIsAudioPlayerVisible(false);
+    setTextChunks([]);
+    setCurrentChunkIndex(0);
+    setAudioState({
+      isPlaying: false,
+      isLoading: false,
+      currentTime: 0,
+      duration: 0,
+    });
+  };
+
+  // This function ONLY toggles the card's visibility. Renamed for clarity.
+  const toggleAudioPlayerVisibility = () => {
+    if (isAudioPlayerVisible) {
+      handleCloseAudioPlayer();
+    } else {
+      handleStartTTS(); // Use our new function that gets text from DOM
     }
   };
 
@@ -816,39 +926,6 @@ function ArticleView() {
           toast.error("No text content to play.");
         }
       }
-    }
-  };
-
-  const handleAudioEnded = () => {
-    // When a chunk ends, automatically fetch and play the next one
-    fetchAndPlayChunk(currentChunkIndex + 1, textChunks);
-  };
-
-  const handleCloseAudioPlayer = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      if (audioRef.current.src) {
-        URL.revokeObjectURL(audioRef.current.src);
-      }
-      audioRef.current.removeAttribute("src");
-    }
-    setIsAudioPlayerVisible(false);
-    setTextChunks([]);
-    setCurrentChunkIndex(0);
-    setAudioState({
-      isPlaying: false,
-      isLoading: false,
-      currentTime: 0,
-      duration: 0,
-    });
-  };
-
-  // This function ONLY toggles the card's visibility. Renamed for clarity.
-  const toggleAudioPlayerVisibility = () => {
-    if (isAudioPlayerVisible) {
-      handleCloseAudioPlayer();
-    } else {
-      handleStartTTS(); // Use our new function that gets text from DOM
     }
   };
 
@@ -1201,7 +1278,7 @@ function ArticleView() {
         )}
       </div>
 
-      {/* Hidden HTML5 Audio Element */}
+      {/* Hidden HTML5 Audio Elements */}
       <audio
         ref={audioRef}
         style={{ display: "none" }}
@@ -1229,6 +1306,7 @@ function ArticleView() {
         }
         onEnded={handleAudioEnded}
       />
+      <audio ref={nextAudioRef} style={{ display: "none" }} />
 
       {/* Integrated AudioPlayerCard */}
       {isAudioPlayerVisible && article && (
