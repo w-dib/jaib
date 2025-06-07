@@ -115,9 +115,16 @@ function splitTextIntoChunks(text, maxLength = 120) {
 
 // Add this function after the other utility functions and before the component
 function extractTextFromDOM(element) {
+  // Find the main article content div using its className
+  const mainContentDiv = element.querySelector(".prose.prose-lg");
+  if (!mainContentDiv) {
+    console.warn("Main content div not found");
+    return "";
+  }
+
   let text = "";
   const walk = document.createTreeWalker(
-    element,
+    mainContentDiv,
     NodeFilter.SHOW_TEXT,
     null,
     false
