@@ -81,37 +81,37 @@ import ShareDialog from "../../components/ShareDialog"; // ADDED: Import ShareDi
  * @param {number} maxLength The desired maximum length of a chunk.
  * @returns {string[]} An array of text chunks.
  */
-// function splitTextIntoChunks(text, maxLength = 120) {
-//   const chunks = [];
-//   if (!text) return chunks;
-//   let remainingText = text.replace(/\\n/g, " ").trim();
-//   const sentenceEndings = /(?<=[.?!])\s+/;
-//   while (remainingText.length > 0) {
-//     if (remainingText.length <= maxLength) {
-//       chunks.push(remainingText);
-//       break;
-//     }
-//     let chunk = remainingText.substring(0, maxLength);
-//     let lastSentenceEnd = -1;
-//     const matches = [...chunk.matchAll(new RegExp(sentenceEndings, "g"))];
-//     if (matches.length > 0) {
-//       lastSentenceEnd =
-//         matches[matches.length - 1].index +
-//         matches[matches.length - 1][0].length;
-//     }
-//     if (lastSentenceEnd !== -1) {
-//       chunk = remainingText.substring(0, lastSentenceEnd);
-//     } else {
-//       const lastSpace = chunk.lastIndexOf(" ");
-//       if (lastSpace !== -1) {
-//         chunk = chunk.substring(0, lastSpace);
-//       }
-//     }
-//     chunks.push(chunk);
-//     remainingText = remainingText.substring(chunk.length).trim();
-//   }
-//   return chunks;
-// }
+function splitTextIntoChunks(text, maxLength = 120) {
+  const chunks = [];
+  if (!text) return chunks;
+  let remainingText = text.replace(/\\n/g, " ").trim();
+  const sentenceEndings = /(?<=[.?!])\s+/;
+  while (remainingText.length > 0) {
+    if (remainingText.length <= maxLength) {
+      chunks.push(remainingText);
+      break;
+    }
+    let chunk = remainingText.substring(0, maxLength);
+    let lastSentenceEnd = -1;
+    const matches = [...chunk.matchAll(new RegExp(sentenceEndings, "g"))];
+    if (matches.length > 0) {
+      lastSentenceEnd =
+        matches[matches.length - 1].index +
+        matches[matches.length - 1][0].length;
+    }
+    if (lastSentenceEnd !== -1) {
+      chunk = remainingText.substring(0, lastSentenceEnd);
+    } else {
+      const lastSpace = chunk.lastIndexOf(" ");
+      if (lastSpace !== -1) {
+        chunk = chunk.substring(0, lastSpace);
+      }
+    }
+    chunks.push(chunk);
+    remainingText = remainingText.substring(chunk.length).trim();
+  }
+  return chunks;
+}
 
 function ArticleView() {
   const { id } = useParams();
@@ -147,6 +147,8 @@ function ArticleView() {
 
   // State for Audio Player
   const [isAudioPlayerVisible, setIsAudioPlayerVisible] = useState(false);
+  const [textChunks, setTextChunks] = useState([]);
+  const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
 
   // State for Audio Player
   const [audioState, setAudioState] = useState({
@@ -703,6 +705,45 @@ function ArticleView() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  const fetchAndPlayChunk = async (chunkIndex, chunks) => {
+    if (chunkIndex >= chunks.length) {
+      console.log("All chunks played.");
+      setIsAudioPlayerVisible(false); // Hide player when finished
+      return;
+    }
+
+    setAudioState((prev) => ({ ...prev, isLoading: true }));
+    try {
+      const response = await fetch("/api/text-to-speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: chunks[chunkIndex] }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.details || "Failed to fetch audio chunk.");
+      }
+
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      audioRef.current.src = audioUrl;
+      audioRef.current
+        .play()
+        .catch((e) => console.error("Audio play failed", e));
+      setCurrentChunkIndex(chunkIndex);
+    } catch (error) {
+      console.error("Error fetching audio for chunk:", chunkIndex, error);
+      toast.error(`Error generating audio: ${error.message}`);
+      setAudioState((prev) => ({
+        ...prev,
+        isLoading: false,
+        isPlaying: false,
+      }));
+    }
+  };
+
   const handlePlayPauseAudio = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -714,36 +755,11 @@ function ArticleView() {
       if (audio.src) {
         audio.play().catch((e) => console.error("Audio play failed", e));
       } else {
-        // Send the entire article text at once
-        if (article?.text_content) {
-          setAudioState((prev) => ({ ...prev, isLoading: true }));
-          fetch("/api/text-to-speech", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: article.text_content }),
-          })
-            .then((response) => {
-              if (!response.ok) {
-                return response.json().then((err) => {
-                  throw new Error(err.details || "Failed to fetch audio.");
-                });
-              }
-              return response.blob();
-            })
-            .then((audioBlob) => {
-              const audioUrl = URL.createObjectURL(audioBlob);
-              audio.src = audioUrl;
-              audio.play().catch((e) => console.error("Audio play failed", e));
-            })
-            .catch((error) => {
-              console.error("Error fetching audio:", error);
-              toast.error(`Error generating audio: ${error.message}`);
-              setAudioState((prev) => ({
-                ...prev,
-                isLoading: false,
-                isPlaying: false,
-              }));
-            });
+        // First time playing: split text and fetch the first chunk
+        const chunks = splitTextIntoChunks(article?.text_content);
+        if (chunks.length > 0) {
+          setTextChunks(chunks);
+          fetchAndPlayChunk(0, chunks);
         } else {
           toast.error("No text content to play.");
         }
@@ -752,12 +768,8 @@ function ArticleView() {
   };
 
   const handleAudioEnded = () => {
-    // Just stop playing when the audio ends
-    setAudioState((prev) => ({
-      ...prev,
-      isPlaying: false,
-      currentTime: 0,
-    }));
+    // When a chunk ends, automatically fetch and play the next one
+    fetchAndPlayChunk(currentChunkIndex + 1, textChunks);
   };
 
   const handleCloseAudioPlayer = () => {
@@ -769,6 +781,8 @@ function ArticleView() {
       audioRef.current.removeAttribute("src");
     }
     setIsAudioPlayerVisible(false);
+    setTextChunks([]);
+    setCurrentChunkIndex(0);
     setAudioState({
       isPlaying: false,
       isLoading: false,
