@@ -953,7 +953,10 @@ function ArticleView() {
 
     try {
       console.log("[fetchAndPlayChunk] Fetching chunk", chunkIndex);
-      const response = await fetch("/api/text-to-speech", {
+      const apiUrl = import.meta.env.PROD
+        ? `${window.location.origin}/api/text-to-speech`
+        : "/api/text-to-speech";
+      const response = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: chunks[chunkIndex] }),
